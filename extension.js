@@ -155,9 +155,14 @@ function getWebviewContent(imageUri) {
   <body>
 	  <h2>Ruby Helper</h2>
 	  <img src="${imageUri}"/><br/><br/>
-	  <button onClick="runButton()">Run Your Code</button>
-	  Challenge Selected: <span id="challengename">None selected</span><br/>
-	  <h2>Challenges</h2>
+	  <table border="0" width="100%">
+        <tr>
+          <td align="left"><button onClick="runButton()">Run Your Code</button>&nbsp;&nbsp;<span id="challengename">Select below</span></td>
+          <td align="right"><button onClick="reset()">Choose a Different Challenge</button></td>
+        </tr>
+      </table>
+	  <br/>
+	  <h2 id="challengemapheader">Challenges</h2>
 	  <div id="challengemap" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
 	  <h2>Current Challenge</h2>
 	  <div id="challenge" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
@@ -180,6 +185,10 @@ function getWebviewContent(imageUri) {
 				text: problemNumber
 			})
 		  }
+		  function reset() {
+			document.getElementById("challengemapheader").style.display = "block";
+			document.getElementById("challengemap").style.display = "block";
+		  }
 
 		  // Handle the message inside the webview
 		  window.addEventListener('message', event => {
@@ -195,6 +204,8 @@ function getWebviewContent(imageUri) {
 			  }
 			  if (message.challengename) {
 				  document.getElementById("challengename").innerHTML = message.challengename;
+				  document.getElementById("challengemapheader").style.display = "none";
+				  document.getElementById("challengemap").style.display = "none";
 			  }
 			  if (message.challenge) {
 				document.getElementById("challenge").innerHTML = message.challenge;
