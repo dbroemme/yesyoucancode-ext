@@ -2,7 +2,6 @@
 // Import the module and reference it with the alias vscode in your code below
 const vscode = require('vscode');
 const fs = require('fs');
-//const rootDir = vscode.workspace.rootPath;
 const rootDir = vscode.workspace.workspaceFolders[0].uri.fsPath;
 
 // this method is called when your extension is activated
@@ -43,7 +42,7 @@ function activate(context) {
 		  switch (message.command) {
 			case 'run':
 			  console.log("The run button was clicked");
-			  runRubyProgram(currentPanel, rootDir, chosenExampleNumber);
+			  runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs);
 			  return;
 			case 'start':
 			  chosenExampleNumber = message.text;
@@ -79,21 +78,18 @@ function openExample(currentPanel, exampleNumber, rootDir, fs) {
 	console.log("The fs var is " + fs);
 	let rubyFileUri = vscode.Uri.file(rootDir + "/problems/code" + exampleNumber + ".rb");
 	console.log("Construct ruby code file uri " + rubyFileUri);
-	try {
-	    var docHtml = fs.readFileSync(rootDir + "/problems/docs" + exampleNumber + ".html", 'utf8');
-	    console.log("the doc html is: " + docHtml);
-	    currentPanel.webview.postMessage({ challengename: "Challenge #" + exampleNumber,
-										   challenge: docHtml});
-	} catch (err) {
-		console.log("We caught an exception");
-		console.log(err);
-	}
+
+	var docHtml = fs.readFileSync(rootDir + "/problems/docs" + exampleNumber + ".html", 'utf8');
+	console.log("the doc html is: " + docHtml);
+	currentPanel.webview.postMessage({ challengename: "Challenge #" + exampleNumber,
+										challenge: docHtml});
+	
 	vscode.workspace.openTextDocument(rubyFileUri).then(
 		doc => vscode.window.showTextDocument(doc, vscode.ViewColumn.One)
 	);
 }
 
-function runRubyProgram(currentPanel, rootDir, chosenExampleNumber) {
+function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs) {
 	console.log("In runRubyProgram() for example " + chosenExampleNumber);
 	console.log("[3] The root dir is " + rootDir);
 	// TODO auto save the current editor file, if the user has not done so already
@@ -123,23 +119,33 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber) {
 	//codeTerminal.sendText("echo " + uuid, true);
 	codeTerminal.sendText("clear", true);
 	codeTerminal.sendText(commandString, true);
-
-	setTimeout(function(){ getCommandOutput(currentPanel, chosenExampleNumber); }, 1000);
-
+	try {
+		const { exec } = require("child_process");
+		exec("ruby " + editorFileName, (error, stdout, stderr) => {
+			if (error) {
+				console.log(`error: ${error.message}`);
+				return;
+			}
+			if (stderr) {
+				console.log(`stderr: ${stderr}`);
+				return;
+			}
+			console.log("---");
+			console.log(stdout);
+			let parsedOutput = parseOutput(stdout);
+			console.log("---");
+			console.log(parsedOutput);
+			// Here we send info back to the webview for display
+			currentPanel.webview.postMessage(
+				{ output: parsedOutput["output"], feedback: parsedOutput["feedback"] });
+		});
+	} catch (err) {
+		console.log("We caught an exception");
+		console.log(err);
+	}
+	//setTimeout(function(){ getCommandOutput(currentPanel, chosenExampleNumber); }, 1000);
 }
-function timeout(currentPanel) {
-    setTimeout(function () {
-		if (getCommandOutput(currentPanel)) {
-			// done
-		} else {
-			console.log("Going to set timeout for another second. ");
-			var today = new Date();
-			var strTime = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-			console.log("Sleeping at " + strTime);
-		    timeout();
-		}
-    }, 1000);
-}
+
 // 9ADCFF   baby blue
 // 5299D5   darker blue
 // C684C1   purple
@@ -153,7 +159,6 @@ function getWebviewContent(imageUri) {
 	  <title>Yes, You Can Code</title>
   </head>
   <body>
-	  <h2>Ruby Helper</h2>
 	  <img src="${imageUri}"/><br/><br/>
 	  <table border="0" width="100%">
         <tr>
@@ -220,49 +225,8 @@ function getWebviewContent(imageUri) {
 // this method is called when your extension is deactivated
 function deactivate() {}
 
-function getCommandOutput(currentPanel, chosenExampleNumber) {
-	vscode.commands.executeCommand('workbench.action.terminal.selectAll').then(() => {
-		vscode.commands.executeCommand('workbench.action.terminal.copySelection').then(() => {
-		    vscode.commands.executeCommand('workbench.action.terminal.clearSelection').then(() => {
-		        vscode.env.clipboard.readText().then((text)=>{
-					//console.log("The clipboard text is as follows");
-					//console.log(text);
-					//console.log("---");
-					let parsedOutput = parseOutput(text);
-					//console.log(parsedOutput);
-					if (parsedOutput["feedback"] == "NOT-DONE") {
-						return false;
-					}
-					// Here we send info back to the webview for display
-    				currentPanel.webview.postMessage(
-						{ output: parsedOutput["output"], feedback: parsedOutput["feedback"] });
-					return true;
-		        });
-		    });
-		});
-	});
-	return false;
-}
-
 function parseOutput(strOutput) {
-	let lines = strOutput.split(/\r?\n/)
-	// The first line is the command itself
-	let outputLines = lines.slice(1)
-	let doneIndex = 0
-	for (let index = 0; index < outputLines.length; index++) {
-		let line = outputLines[index];
-		if (line.substr(line.length-2, 2) == "$ ") {
-			doneIndex = index;
-		}
-	}
-	//ßconsole.log("The done index is " + doneIndex);
-	if (doneIndex == 0) {
-		console.log("ERROR occurred, did not find the shell prompt indicating the output is over.");
-		return "NOT-DONE";
-	}
-	//console.log("-----");
-	//console.log(outputLines);
-	let actualOutputLines = outputLines.slice(0, doneIndex);
+	let actualOutputLines = strOutput.split(/\r?\n/)
 	// TODO Add the answer and compare what we got with the answer
 	// Show the difference in the feedback sent to the webview
 	// TODO Are there other Ruby extensions that can help the user with editing also
