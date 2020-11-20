@@ -1,7 +1,9 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 const vscode = require('vscode');
-
+const fs = require('fs');
+//const rootDir = vscode.workspace.rootPath;
+const rootDir = vscode.workspace.workspaceFolders[0].uri.fsPath;
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -13,7 +15,7 @@ function activate(context) {
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
 	console.log('The "yesyoucancoderuby" extension is now active!');
-	let rootDir = vscode.workspace.rootPath;
+	console.log("[1] The root dir is " + rootDir);
 	var chosenExampleNumber = 'none';
 
 	// The code you place here will be executed every time your command is executed
@@ -45,7 +47,7 @@ function activate(context) {
 			  return;
 			case 'start':
 			  chosenExampleNumber = message.text;
-			  openExample(message.text, rootDir);
+			  openExample(currentPanel, message.text, rootDir, fs);
 			  return;
 			case 'alert':
 			  vscode.window.showErrorMessage(message.text);
@@ -61,45 +63,43 @@ function activate(context) {
 	// The commandId parameter must match the command field in package.json
 	let disposable = vscode.commands.registerCommand('yesyoucancoderuby.helloWorld', function () {
 		console.log("YouCanCode extension activation function was called.");
-		//	let cursorPosition = editor.selection.start
-		//	var lineCount = cursorPosition.line	
-		//	vscode.window.showInformationMessage('The line count is ' + lineCount);
-		
-		//const { exec } = require("child_process");
-		// exec("ruby " + editorFileName, (error, stdout, stderr) => {
-		// 	if (error) {
-		// 		console.log(`error: ${error.message}`);
-		// 		return;
-		// 	}
-		// 	if (stderr) {
-		// 		console.log(`stderr: ${stderr}`);
-		// 		return;
-		// 	}
-		// 	console.log(`stdout: ${stdout}`);
-		// });
 	});
 
 	context.subscriptions.push(disposable);
+
+	var mapHtml = fs.readFileSync(context.extensionPath + "/problems/map.html", 'utf8');
+	//console.log("the map html is: " + mapHtml);
+    currentPanel.webview.postMessage({ challengemap: mapHtml });
 }
 exports.activate = activate;
 
-function openExample(exampleNumber, rootDir) {
+function openExample(currentPanel, exampleNumber, rootDir, fs) {
 	console.log("Going to open example " + exampleNumber);
-	console.log("Root dir is " + rootDir);
-	//let workspaceFolderPath = workspaceFolder.uri.path;
-	//vscode.Uri.file(path.join(folder.uri.fsPath, 'foo.js'))
-	let fileUri = vscode.Uri.file(rootDir + "/problems/example" + exampleNumber + ".rb");
-	console.log("Construct uri " + fileUri);
-	vscode.workspace.openTextDocument(fileUri).then(
+	console.log("[2] The root dir is " + rootDir);
+	console.log("The fs var is " + fs);
+	let rubyFileUri = vscode.Uri.file(rootDir + "/problems/code" + exampleNumber + ".rb");
+	console.log("Construct ruby code file uri " + rubyFileUri);
+	try {
+	    var docHtml = fs.readFileSync(rootDir + "/problems/docs" + exampleNumber + ".html", 'utf8');
+	    console.log("the doc html is: " + docHtml);
+	    currentPanel.webview.postMessage({ challengename: "Challenge #" + exampleNumber,
+										   challenge: docHtml});
+	} catch (err) {
+		console.log("We caught an exception");
+		console.log(err);
+	}
+	vscode.workspace.openTextDocument(rubyFileUri).then(
 		doc => vscode.window.showTextDocument(doc, vscode.ViewColumn.One)
 	);
 }
 
 function runRubyProgram(currentPanel, rootDir, chosenExampleNumber) {
 	console.log("In runRubyProgram() for example " + chosenExampleNumber);
-	openExample(chosenExampleNumber, rootDir);
-
-	let editorFileName = rootDir + "/problems/example" + chosenExampleNumber + ".rb";
+	console.log("[3] The root dir is " + rootDir);
+	// TODO auto save the current editor file, if the user has not done so already
+	// because we need the file itself to be saved for it to be run by the
+	// next command
+	let editorFileName = rootDir + "/problems/code" + chosenExampleNumber + ".rb";
 	let commandString = "ruby " + editorFileName;
 	console.log("Preparing to run ruby using command: " + commandString);
 
@@ -154,19 +154,13 @@ function getWebviewContent(imageUri) {
   </head>
   <body>
 	  <h2>Ruby Helper</h2>
-	  <img src="${imageUri}"/><br/>
-	  <table border="0" width="100%">
-	    <tr>
-		  <td><button onClick="runButton()">Run Your Code</button></td>
-		  <td>Hello there.</td>
-		</tr>
-	    <tr>
-		  <td><a href="#" onClick="startProblem('1')" >Run Problem 1</a></td>
-		  <td><a href="#" onClick="startProblem('2')" >Run Problem 2</a></td>
-		</tr>
-	  </table>
-
-	  <br/>
+	  <img src="${imageUri}"/><br/><br/>
+	  <button onClick="runButton()">Run Your Code</button>
+	  Challenge Selected: <span id="challengename">None selected</span><br/>
+	  <h2>Challenges</h2>
+	  <div id="challengemap" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
+	  <h2>Current Challenge</h2>
+	  <div id="challenge" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
 	  <h2>Output</h2>
 	  <div id="output" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
 	  <h2>Feedback</h2>
@@ -190,9 +184,22 @@ function getWebviewContent(imageUri) {
 		  // Handle the message inside the webview
 		  window.addEventListener('message', event => {
 			  const message = event.data; // The JSON data our extension sent
-			  document.getElementById("feedback").innerHTML = message.feedback;
-			  document.getElementById("output").innerHTML = message.output;
-		  });
+			  if (message.feedback) {
+			  	  document.getElementById("feedback").innerHTML = message.feedback;
+			  }
+			  if (message.output) {
+			      document.getElementById("output").innerHTML = message.output;
+			  }
+			  if (message.challengemap) {
+				  document.getElementById("challengemap").innerHTML = message.challengemap;
+			  }
+			  if (message.challengename) {
+				  document.getElementById("challengename").innerHTML = message.challengename;
+			  }
+			  if (message.challenge) {
+				document.getElementById("challenge").innerHTML = message.challenge;
+			}
+		});
 	  </script>
   </body>
   </html>`;
@@ -207,11 +214,11 @@ function getCommandOutput(currentPanel, chosenExampleNumber) {
 		vscode.commands.executeCommand('workbench.action.terminal.copySelection').then(() => {
 		    vscode.commands.executeCommand('workbench.action.terminal.clearSelection').then(() => {
 		        vscode.env.clipboard.readText().then((text)=>{
-					console.log("The clipboard text is as follows");
-					console.log(text);
-					console.log("---");
+					//console.log("The clipboard text is as follows");
+					//console.log(text);
+					//console.log("---");
 					let parsedOutput = parseOutput(text);
-					console.log(parsedOutput);
+					//console.log(parsedOutput);
 					if (parsedOutput["feedback"] == "NOT-DONE") {
 						return false;
 					}
@@ -227,12 +234,6 @@ function getCommandOutput(currentPanel, chosenExampleNumber) {
 }
 
 function parseOutput(strOutput) {
-	// var pos = strOutput.lastIndexOf(commandString);
-	// if (pos == -1) {
-	// 	console.log("The command was not found in the output");
-	// 	return;
-	// }
-	// var theRest = strOutput.slice(pos);
 	let lines = strOutput.split(/\r?\n/)
 	// The first line is the command itself
 	let outputLines = lines.slice(1)
@@ -243,13 +244,13 @@ function parseOutput(strOutput) {
 			doneIndex = index;
 		}
 	}
-	console.log("The done index is " + doneIndex);
+	//ßconsole.log("The done index is " + doneIndex);
 	if (doneIndex == 0) {
 		console.log("ERROR occurred, did not find the shell prompt indicating the output is over.");
 		return "NOT-DONE";
 	}
-	console.log("-----");
-	console.log(outputLines);
+	//console.log("-----");
+	//console.log(outputLines);
 	let actualOutputLines = outputLines.slice(0, doneIndex);
 	// TODO Add the answer and compare what we got with the answer
 	// Show the difference in the feedback sent to the webview
