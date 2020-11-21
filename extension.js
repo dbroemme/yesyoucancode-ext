@@ -163,10 +163,28 @@ function getWebviewContent(imageUri) {
 	  <meta charset="UTF-8">
 	  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 	  <title>Yes, You Can Code</title>
+	  <style>
+	  pre {
+		background: #f4f4f4;
+		border: 1px solid #ddd;
+		border-left: 3px solid #5299D5;
+		color: #666;
+		page-break-inside: avoid;
+		font-family: monospace;
+		font-size: 15px;
+		line-height: 1.6;
+		margin-bottom: 1.6em;
+		max-width: 100%;
+		overflow: auto;
+		padding: 1em 1.5em;
+		display: block;
+		word-wrap: break-word;
+	}
+	</style>
   </head>
   <body>
 	  <img src="${imageUri}"/><br/><br/>
-	  <div id="challengemap" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
+	  <div id="challengemap">&nbsp;<br/>&nbsp;</div>
       <div id="workarea" style="display: none;">
 	  <table border="0" width="100%">
         <tr>
@@ -176,10 +194,12 @@ function getWebviewContent(imageUri) {
       </table>
 	  <br/>
 	  <div id="challenge">&nbsp;</div>
-	  <br/><b>Output</b>
-	  <div id="output" style="color: #6EB5F7; border-top:1px solid #ffffff; border-radius: 5px;">Click 'Run your code' to see results here<br/>&nbsp;</div>
-	  <br/><b>Feedback</b>
-	  <div id="feedback" style="color: #33bbc8; border-top:1px solid #ffffff; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
+	  <br/><b>Output</b><div>
+	  <pre id="output">Click 'Run your code' to see results here</pre>
+	  <br/></div>
+	  <br/><b>Feedback</b><div>
+	  <pre id="feedback">You will get feedback on your output here.</pre>
+	  <br/></div>
 	  </div>  <!-- end workarea -->
 	  <script>
 		  const vscode = acquireVsCodeApi();
