@@ -66,6 +66,9 @@ function activate(context) {
 
 	context.subscriptions.push(disposable);
 
+	hideTerminalWindow();
+	vscode.commands.executeCommand("workbench.action.closeSidebar");
+
 	var mapHtml = fs.readFileSync(context.extensionPath + "/problems/map.html", 'utf8');
 	//console.log("the map html is: " + mapHtml);
     currentPanel.webview.postMessage({ challengemap: mapHtml });
@@ -81,8 +84,7 @@ function openExample(currentPanel, exampleNumber, rootDir, fs) {
 
 	var docHtml = fs.readFileSync(rootDir + "/problems/docs" + exampleNumber + ".html", 'utf8');
 	console.log("the doc html is: " + docHtml);
-	currentPanel.webview.postMessage({ challengename: "Challenge #" + exampleNumber,
-										challenge: docHtml});
+	currentPanel.webview.postMessage({ challenge: docHtml});
 	
 	vscode.workspace.openTextDocument(rubyFileUri).then(
 		doc => vscode.window.showTextDocument(doc, vscode.ViewColumn.One)
@@ -99,26 +101,6 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs) {
 	let commandString = "ruby " + editorFileName;
 	console.log("Preparing to run ruby using command: " + commandString);
 
-	// Don't create a new terminal if it already exists.
-	let theList = vscode.window.terminals;
-	let codeTerminal = undefined;
-	theList.forEach(element => {
-			if (element.name == "Run Your Code") {
-				codeTerminal = element;
-			}
-		}
-	);
-	if (codeTerminal) {
-		console.log("We already have the code terminal window.");
-	} else {
-		console.log("Creating the code terminal window.");
-		codeTerminal = vscode.window.createTerminal("Run Your Code");
-	}
-	codeTerminal.show(true);
-	//let uuid = generatedRunId();
-	//codeTerminal.sendText("echo " + uuid, true);
-	codeTerminal.sendText("clear", true);
-	codeTerminal.sendText(commandString, true);
 	try {
 		const { exec } = require("child_process");
 		exec("ruby " + editorFileName, (error, stdout, stderr) => {
@@ -148,6 +130,28 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs) {
 	//setTimeout(function(){ getCommandOutput(currentPanel, chosenExampleNumber); }, 1000);
 }
 
+function hideTerminalWindow() {
+	// Don't create a new terminal if it already exists.
+	let theList = vscode.window.terminals;
+	let codeTerminal = undefined;
+	theList.forEach(element => {
+			if (element.name == "Run Your Code") {
+				codeTerminal = element;
+			}
+		}
+	);
+	if (codeTerminal) {
+		console.log("We already have the code terminal window.");
+	} else {
+		console.log("Creating the code terminal window.");
+		codeTerminal = vscode.window.createTerminal("Run Your Code");
+	}
+	codeTerminal.show(true);
+	codeTerminal.sendText("clear", true);
+	codeTerminal.hide();
+	//codeTerminal.sendText(commandString, true);
+}
+
 // 9ADCFF   baby blue
 // 5299D5   darker blue
 // C684C1   purple
@@ -162,21 +166,21 @@ function getWebviewContent(imageUri) {
   </head>
   <body>
 	  <img src="${imageUri}"/><br/><br/>
+	  <div id="challengemap" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
+      <div id="workarea" style="display: none;">
 	  <table border="0" width="100%">
         <tr>
-          <td align="left"><button onClick="runButton()">Run Your Code</button>&nbsp;&nbsp;<span id="challengename">Select below</span></td>
+          <td align="left"><button onClick="runButton()">Run Your Code</button></td>
           <td align="right"><button onClick="reset()">Choose a Different Challenge</button></td>
         </tr>
       </table>
 	  <br/>
-	  <h2 id="challengemapheader">Challenges</h2>
-	  <div id="challengemap" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
-	  <h2>Current Challenge</h2>
-	  <div id="challenge" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
-	  <h2>Output</h2>
-	  <div id="output" style="color: #CF9176; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
-	  <h2>Feedback</h2>
-	  <div id="feedback" style="color: #DCDDA7; border:1px solid #2196F3; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
+	  <div id="challenge">&nbsp;</div>
+	  <br/><b>Output</b>
+	  <div id="output" style="color: #6EB5F7; border-top:1px solid #ffffff; border-radius: 5px;">Click 'Run your code' to see results here<br/>&nbsp;</div>
+	  <br/><b>Feedback</b>
+	  <div id="feedback" style="color: #33bbc8; border-top:1px solid #ffffff; border-radius: 5px;">&nbsp;<br/>&nbsp;</div>
+	  </div>  <!-- end workarea -->
 	  <script>
 		  const vscode = acquireVsCodeApi();
 		  
@@ -187,14 +191,16 @@ function getWebviewContent(imageUri) {
 			})
 		  }
 		  function startProblem(problemNumber) {
+			document.getElementById("workarea").style.display = "block";
+			document.getElementById("challengemap").style.display = "none";
 			vscode.postMessage({
 				command: 'start',
 				text: problemNumber
 			})
 		  }
 		  function reset() {
-			document.getElementById("challengemapheader").style.display = "block";
 			document.getElementById("challengemap").style.display = "block";
+			document.getElementById("workarea").style.display = "none";
 		  }
 
 		  // Handle the message inside the webview
@@ -209,15 +215,10 @@ function getWebviewContent(imageUri) {
 			  if (message.challengemap) {
 				  document.getElementById("challengemap").innerHTML = message.challengemap;
 			  }
-			  if (message.challengename) {
-				  document.getElementById("challengename").innerHTML = message.challengename;
-				  document.getElementById("challengemapheader").style.display = "none";
-				  document.getElementById("challengemap").style.display = "none";
-			  }
 			  if (message.challenge) {
 				document.getElementById("challenge").innerHTML = message.challenge;
-			}
-		});
+			  }
+		   });
 	  </script>
   </body>
   </html>`;
