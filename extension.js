@@ -135,6 +135,8 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs) {
 			let parsedOutput = parseOutput(stdout);
 			console.log("---");
 			console.log(parsedOutput);
+			// TODO Add the answer and compare what we got with the answer
+
 			// Here we send info back to the webview for display
 			currentPanel.webview.postMessage(
 				{ output: parsedOutput["output"], feedback: parsedOutput["feedback"] });
@@ -226,23 +228,23 @@ function getWebviewContent(imageUri) {
 function deactivate() {}
 
 function parseOutput(strOutput) {
-	let actualOutputLines = strOutput.split(/\r?\n/)
-	// TODO Add the answer and compare what we got with the answer
+	let lines = strOutput.split(/\r?\n/)
+	var actualOutputLines = []
+	lines.forEach(element => {
+		console.log(element);
+		console.log("Line length: " + element.length);
+		if (element.length > 0) {
+			actualOutputLines.push(element);
+		}
+	});
+
 	// Show the difference in the feedback sent to the webview
 	// TODO Are there other Ruby extensions that can help the user with editing also
 	// TODO Add a hint button to provide a template
-	// TODO Parameterize this, so we can use for different problem assignements
 	return {
 		output: actualOutputLines.join("<br/>"),
 		feedback: "There are " + actualOutputLines.length + " lines of output"
 	};
-}
-
-function generatedRunId() {
-	return 'xxxxxxxx'.replace(/[x]/g, function(c) {
-	  var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-	  return v.toString(16);
-	});
 }
 
 module.exports = {
