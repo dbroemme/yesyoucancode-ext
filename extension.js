@@ -13,12 +13,13 @@ function activate(context) {
 
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
-	console.log("The yesyoucancoderuby extension is now active. The root dir is " + rootDir);
+	log_info("The yesyoucancoderuby extension is now active. The root dir is " + rootDir);
 	var chosenExampleNumber = 'none';
+	var runMode = 'managed';    // or console
 
 	// The code you place here will be executed every time your command is executed
 	let currentPanel = vscode.window.createWebviewPanel(
-		'yesyoucancoderuby',
+		'YesYouCanCode',
 		'Yes, You Can Code',
 		vscode.ViewColumn.Two,
 		{
@@ -47,7 +48,6 @@ function activate(context) {
 			  openExample(currentPanel, message.text, rootDir, fs);
 			  return;
 			case 'gets':
-			  //vscode.window.showErrorMessage(message.text);
 			  push(message.text);
 			  return;
 		  }
@@ -60,7 +60,7 @@ function activate(context) {
 	// Now provide the implementation of the command with  registerCommand
 	// The commandId parameter must match the command field in package.json
 	let disposable = vscode.commands.registerCommand('yesyoucancoderuby.helloWorld', function () {
-		console.log("YouCanCode extension activation function was called.");
+		log_info("YouCanCode extension activation function was called.");
 	});
 
 	context.subscriptions.push(disposable);
@@ -72,36 +72,44 @@ function activate(context) {
 	var mapHtml = fs.readFileSync(context.extensionPath + "/problems/map.html", 'utf8');
 	currentPanel.webview.postMessage({ challengemap: mapHtml });
 	
-	var fileSystemWatcher = vscode.workspace.createFileSystemWatcher("**/{r,j}*");
+	var fileSystemWatcher = vscode.workspace.createFileSystemWatcher("**/{r,out}*");
     fileSystemWatcher.ignoreCreateEvents = false;
-    fileSystemWatcher.ignoreChangeEvents = true;
+    fileSystemWatcher.ignoreChangeEvents = false;
     fileSystemWatcher.ignoreDeleteEvents = true;
     fileSystemWatcher.onDidCreate((e) => {
 		// Get just the filename
 		var lastDelimIndex = e.path.lastIndexOf('/');
 		var watchedFileName = e.path.slice(lastDelimIndex + 1);
-		//vscode.window.showInformationMessage("The watched file name is " + watchedFileName);
+		//vscode.window.showInformationMessage(watchedFileName + "  was created: " + e);
 		if (watchedFileName.startsWith("r")) {
-			//vscode.window.showInformationMessage("A Ruby message file was created: " + e);
 			getWebviewInput(currentPanel);
-		} else if (watchedFileName.startsWith("j")) {
-			vscode.window.showInformationMessage("This was our own file that was created: " + e);
-		} else {
-			vscode.window.showInformationMessage("An unidentified file was created: " + e);
+		} else if (watchedFileName === "out.txt") {
+			var outputContent = fs.readFileSync(e.path, 'utf8');
+			log_info("output file created: " + outputContent + ".");
+   	        currentPanel.webview.postMessage({ output: outputContent});
 		} 
+    });
+    fileSystemWatcher.onDidChange((e) => {
+		// Get just the filename
+		var lastDelimIndex = e.path.lastIndexOf('/');
+		var watchedFileName = e.path.slice(lastDelimIndex + 1);
+		//vscode.window.showInformationMessage(watchedFileName + "  was changed: " + e);
+		if (watchedFileName === "out.txt") {
+			var outputContent = fs.readFileSync(e.path, 'utf8');
+			log_info("output file updated: " + outputContent + ".");
+			currentPanel.webview.postMessage({ output: outputContent});
+		}
     });
 }
 exports.activate = activate;
 
 function openExample(currentPanel, exampleNumber, rootDir, fs) {
-	console.log("Going to open example " + exampleNumber);
-	console.log("[2] The root dir is " + rootDir);
-	console.log("The fs var is " + fs);
+	log_info("Going to open example " + exampleNumber);
 	let rubyFileUri = vscode.Uri.file(rootDir + "/problems/code" + exampleNumber + ".rb");
-	console.log("Construct ruby code file uri " + rubyFileUri);
+	log_info("Construct ruby code file uri " + rubyFileUri);
 
 	var docHtml = fs.readFileSync(rootDir + "/problems/docs" + exampleNumber + ".html", 'utf8');
-	console.log("the doc html is: " + docHtml);
+	//log_info("the doc html is: " + docHtml);
 	currentPanel.webview.postMessage({ challenge: docHtml});
 	
 	vscode.workspace.openTextDocument(rubyFileUri).then(
@@ -110,8 +118,19 @@ function openExample(currentPanel, exampleNumber, rootDir, fs) {
 }
 
 function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs) {
-	console.log("In runRubyProgram() for example " + chosenExampleNumber);
-	console.log("[3] The root dir is " + rootDir);
+	log_info("In runRubyProgram() for example " + chosenExampleNumber);
+	if (fs.existsSync(rootDir + "/problems/out.txt")) {
+		try {
+			fs.unlinkSync(rootDir + "/problems/out.txt");
+		} catch (err) {
+			log_info("We caught an exception");
+			log_info(err);
+		}
+	}
+	log_info("We deleted the out.txt file");
+
+	resetMessageQueues();
+
 	// Auto save the current editor file, if the user has not done so already
 	// because we need the file itself to be saved on disk for the run command
 	let openTextDocuments = vscode.window.visibleTextEditors;
@@ -123,7 +142,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs) {
 	
 	let editorFileName = rootDir + "/problems/code" + chosenExampleNumber + ".rb";
 	let commandString = "ruby " + editorFileName;
-	console.log("Preparing to run ruby using command: " + commandString);
+	log_info("Preparing to run ruby using command: " + commandString);
 
 	var expectedOutputStr = fs.readFileSync(rootDir + "/problems/answer" + chosenExampleNumber + ".txt", 'utf8');
 	var expectedOutput = expectedOutputStr.split(/\r?\n/);
@@ -133,25 +152,32 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs) {
 		
 		const rb = spawn('ruby', [editorFileName]);
         rb.stdout.on('data', (data) => {
-			console.log("ruby stdout: " + data);
-			let parsedOutput = parseOutput(data);
-			console.log("The parsed output is: " + parsedOutput);
-			let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
-			console.log("The feedback is: " + feedback);
-			// Send info back to the webview for display
-		  	currentPanel.webview.postMessage(
-		 		{ output: parsedOutput["output"], feedback: feedback });
+			log_info("ruby stdout: " + data);
+			// let parsedOutput = parseOutput(data);
+			// console.log("The parsed output is: " + parsedOutput);
+			// let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
+			// console.log("The feedback is: " + feedback);
+			// // Send info back to the webview for display
+		  	// currentPanel.webview.postMessage(
+		 	// 	{ output: parsedOutput["output"], feedback: feedback });
         });
         rb.stderr.on('data', (data) => {
-            console.error("ruby stderr: " + data);
+            log_info("ruby stderr: " + data);
         });
         rb.on('close', (code) => {
-            console.log("Your ruby program exited with code " + code);
+			log_info("Your ruby program exited with code " + code);
+			var outputContent = fs.readFileSync(rootDir + "/problems/out.txt", 'utf8');
+			let parsedOutput = parseOutput(outputContent);
+			log_info("The parsed output is: " + parsedOutput);
+			let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
+			log_info("The feedback is: " + feedback);
+			// Send info back to the webview for display
+		  	currentPanel.webview.postMessage({ feedback: feedback });
 		});
 
 	} catch (err) {
-		console.log("We caught an exception");
-		console.log(err);
+		log_info("We caught an exception");
+		log_info(err);
 	}
 	//setTimeout(function(){ getCommandOutput(currentPanel, chosenExampleNumber); }, 1000);
 }
@@ -172,9 +198,9 @@ function hideTerminalWindow() {
 		}
 	);
 	if (codeTerminal) {
-		console.log("We already have the code terminal window.");
+		log_info("We already have the code terminal window.");
 	} else {
-		console.log("Creating the code terminal window.");
+		log_info("Creating the code terminal window.");
 		codeTerminal = vscode.window.createTerminal("Run Your Code");
 	}
 	codeTerminal.show(true);
@@ -303,13 +329,13 @@ function getWebviewContent(imageUri) {
 function deactivate() {}
 
 function parseOutput(strOutput) {
-	console.log("in parseOutput with " + strOutput + "." + strOutput.constructor.name + ".");
+	log_info("in parseOutput with " + strOutput + "." + strOutput.constructor.name + ".");
 	let lines = strOutput.toString('utf8').split(/\r?\n/)
-	console.log("got lines: " + lines);
+	log_info("got lines: " + lines);
 	var actualOutputLines = []
 	lines.forEach(element => {
-		console.log(element);
-		console.log("Line length: " + element.length);
+		log_info(element);
+		log_info("Line length: " + element.length);
 		if (element.length > 0) {
 			actualOutputLines.push(element);
 		}
@@ -325,32 +351,32 @@ function parseOutput(strOutput) {
 }
 
 function determineFeedback(parsedOutput, expectedOutput) {
-	console.log("in determineFeedback. Actual length: " + parsedOutput.length + "  Expected length:" + expectedOutput.length);
-	console.log("---------  Actual ------------");
-	console.log(parsedOutput);
-	console.log("--------- Expected -----------");
-	console.log(expectedOutput);
-	console.log("------------------------------");
+	log_info("in determineFeedback. Actual length: " + parsedOutput.length + "  Expected length:" + expectedOutput.length);
+	log_info("---------  Actual ------------");
+	log_info(parsedOutput);
+	log_info("--------- Expected -----------");
+	log_info(expectedOutput);
+	log_info("------------------------------");
 	var actualCount = 0;
 	var expectedOutputCount = 0;
 	var done = false;
 	var match = false;
 	while (expectedOutputCount < expectedOutput.length && !done) {
-		console.log("Comparing lines " + actualCount + ", " + expectedOutputCount);
+		log_info("Comparing lines " + actualCount + ", " + expectedOutputCount);
 		let expectedLine = expectedOutput[expectedOutputCount].replace(/[\n\r]+/g, '');
 		let actualLine = parsedOutput[actualCount];
-		console.log("[" + actualLine + "], [" + expectedLine + "]");
+		log_info("[" + actualLine + "], [" + expectedLine + "]");
 		let comparison = actualLine.indexOf(expectedLine);
-		console.log("Comparison value: " + comparison);
+		log_info("Comparison value: " + comparison);
 		actualCount = actualCount + 1;
 		if (comparison == -1) {
-			console.log("Line " + actualCount + " is not a match.");
+			log_info("Line " + actualCount + " is not a match.");
 			if (actualCount >= parsedOutput.length) {
-				console.log("We should be done.");
+				log_info("We should be done.");
 				done = true;
 			}
 		} else {
-			console.log("Line " + actualCount + " has a match.");
+			log_info("Line " + actualCount + " has a match.");
 			expectedOutputCount = expectedOutputCount + 1;
 			if (expectedOutputCount >= expectedOutput.length) {
 				match = true;
@@ -358,10 +384,10 @@ function determineFeedback(parsedOutput, expectedOutput) {
 		}
 	}
 	if (match) {
-		console.log("We got a match");
+		log_info("We got a match");
 		return "We got a match";
 	}
-	console.log("No match");
+	log_info("No match");
 	return "No match";
 }
 
@@ -375,6 +401,29 @@ var read_count = 1;
 function resetMessageQueues() {
 	write_count = 1;
 	read_count = 1;
+	// Delete any existing message files
+	deleteMessageFiles("r");
+	deleteMessageFiles("j");
+}
+
+function deleteMessageFiles(prefix) {
+	var count = 1;
+	var done = false;
+	while (!done) {
+		var file_name = rootDir + "/problems/" + prefix + count.toString();
+		if (fs.existsSync(file_name)) {
+			try {
+				fs.unlinkSync(file_name);
+			} catch (err) {
+				log_info("Caught an exception trying to delete file " + file_name);
+				log_info(err);
+				done = true;
+			}
+		} else {
+			done = true;
+		}
+		count = count + 1;
+	}
 }
 
 function push(obj) {
@@ -413,16 +462,25 @@ function push(obj) {
 //   return null;
 // }
 
-function timeout() {
-    setTimeout(function () {
-        var o = pop();
-        if (o == null) {
-          // we are done
-        } else {
-          console.log("output: " + o);
-          timeout();
-        }
-    }, 1000);
+// function timeout() {
+//     setTimeout(function () {
+//         var o = pop();
+//         if (o == null) {
+//           // we are done
+//         } else {
+//           console.log("output: " + o);
+//           timeout();
+//         }
+//     }, 1000);
+// }
+
+var info_count = 1;
+function log_info(e) {
+	let file_name = rootDir + "/problems/info" + info_count.toString();;
+	info_count = info_count + 1;
+	fs.writeFile(file_name, e, (err) => {
+		if (err) throw err;
+	});
 }
 
 module.exports = {
