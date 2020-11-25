@@ -3,6 +3,8 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const rootDir = vscode.workspace.workspaceFolders[0].uri.fsPath;
+const MANAGED_RUN_MODE = 'managed';
+const TERMINAL_RUN_MODE = 'terminal';
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -15,7 +17,7 @@ function activate(context) {
 	// This line of code will only be executed once when your extension is activated
 	log_info("The yesyoucancoderuby extension is now active. The root dir is " + rootDir);
 	var chosenExampleNumber = 'none';
-	var runMode = 'managed';    // or console
+	var runMode = MANAGED_RUN_MODE;
 
 	// The code you place here will be executed every time your command is executed
 	let currentPanel = vscode.window.createWebviewPanel(
@@ -41,7 +43,7 @@ function activate(context) {
 		message => {
 		  switch (message.command) {
 			case 'run':
-			  runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs);
+			  runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode);
 			  return;
 			case 'start':
 			  chosenExampleNumber = message.text;
@@ -50,7 +52,15 @@ function activate(context) {
 			case 'gets':
 			  push(message.text);
 			  return;
-		  }
+			case 'mode':
+			  runMode = message.text;
+			  if (runMode === TERMINAL_RUN_MODE) {
+				showTerminalWindow();
+			  } else {
+				hideTerminalWindow();
+			  }
+			  return;
+			}
 		},
 		undefined,
 		context.subscriptions
@@ -117,7 +127,7 @@ function openExample(currentPanel, exampleNumber, rootDir, fs) {
 	);
 }
 
-function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs) {
+function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode) {
 	log_info("In runRubyProgram() for example " + chosenExampleNumber);
 	if (fs.existsSync(rootDir + "/problems/out.txt")) {
 		try {
@@ -144,42 +154,57 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs) {
 	let commandString = "ruby " + editorFileName;
 	log_info("Preparing to run ruby using command: " + commandString);
 
-	var expectedOutputStr = fs.readFileSync(rootDir + "/problems/answer" + chosenExampleNumber + ".txt", 'utf8');
-	var expectedOutput = expectedOutputStr.split(/\r?\n/);
+    if (runMode === TERMINAL_RUN_MODE) {
+	    // Don't create a new terminal if it already exists.
+	    let theList = vscode.window.terminals;
+	    let codeTerminal = undefined;
+	    theList.forEach(element => {
+	        if (element.name == "Run Your Code") {
+	            codeTerminal = element;
+	        }
+	    });
+	    if (codeTerminal) {
+	        log_info("We already have the code terminal window.");
+	    } else {
+			log_info("Creating the code terminal window.");
+	        codeTerminal = vscode.window.createTerminal("Run Your Code");
+	    }
+	    codeTerminal.show(true);
+	    codeTerminal.sendText("clear", true);
+	    codeTerminal.sendText(commandString, true);
 
-	try {
-		const { spawn } = require("child_process");
-		
-		const rb = spawn('ruby', [editorFileName]);
-        rb.stdout.on('data', (data) => {
-			log_info("ruby stdout: " + data);
-			// let parsedOutput = parseOutput(data);
-			// console.log("The parsed output is: " + parsedOutput);
-			// let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
-			// console.log("The feedback is: " + feedback);
-			// // Send info back to the webview for display
-		  	// currentPanel.webview.postMessage(
-		 	// 	{ output: parsedOutput["output"], feedback: feedback });
-        });
-        rb.stderr.on('data', (data) => {
-            log_info("ruby stderr: " + data);
-        });
-        rb.on('close', (code) => {
-			log_info("Your ruby program exited with code " + code);
-			var outputContent = fs.readFileSync(rootDir + "/problems/out.txt", 'utf8');
-			let parsedOutput = parseOutput(outputContent);
-			log_info("The parsed output is: " + parsedOutput);
-			let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
-			log_info("The feedback is: " + feedback);
-			// Send info back to the webview for display
-		  	currentPanel.webview.postMessage({ feedback: feedback });
-		});
+    } else {
+		// Managed run mode
+		// Here we compare to the expected results
+		var expectedOutputStr = fs.readFileSync(rootDir + "/problems/answer" + chosenExampleNumber + ".txt", 'utf8');
+		var expectedOutput = expectedOutputStr.split(/\r?\n/);
 
-	} catch (err) {
-		log_info("We caught an exception");
-		log_info(err);
+		try {
+			const { spawn } = require("child_process");
+			
+			const rb = spawn('ruby', [editorFileName]);
+			rb.stdout.on('data', (data) => {
+				log_info("ruby stdout: " + data);
+			});
+			rb.stderr.on('data', (data) => {
+				log_info("ruby stderr: " + data);
+			});
+			rb.on('close', (code) => {
+				log_info("Your ruby program exited with code " + code);
+				var outputContent = fs.readFileSync(rootDir + "/problems/out.txt", 'utf8');
+				let parsedOutput = parseOutput(outputContent);
+				log_info("The parsed output is: " + parsedOutput);
+				let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
+				log_info("The feedback is: " + feedback);
+				// Send info back to the webview for display
+				currentPanel.webview.postMessage({ feedback: feedback });
+			});
+
+		} catch (err) {
+			log_info("We caught an exception");
+			log_info(err);
+		}
 	}
-	//setTimeout(function(){ getCommandOutput(currentPanel, chosenExampleNumber); }, 1000);
 }
 
 function getWebviewInput(currentPanel) {
@@ -187,7 +212,13 @@ function getWebviewInput(currentPanel) {
 	// TODO Do we need to wait now. I think so, right?
 }
 
+function showTerminalWindow() {
+	toggleTerminalWindow(true);
+}
 function hideTerminalWindow() {
+	toggleTerminalWindow(false);
+}
+function toggleTerminalWindow(showFlag) {
 	// Don't create a new terminal if it already exists.
 	let theList = vscode.window.terminals;
 	let codeTerminal = undefined;
@@ -205,14 +236,23 @@ function hideTerminalWindow() {
 	}
 	codeTerminal.show(true);
 	codeTerminal.sendText("clear", true);
-	codeTerminal.hide();
-	//codeTerminal.sendText(commandString, true);
+	if (!showFlag) {
+	    codeTerminal.hide();
+	}
 }
 
 // 9ADCFF   baby blue
 // 5299D5   darker blue
 // C684C1   purple
 // 699A52   green this one
+// #DAF7A6  cool lime
+// #FFC300  interesting yellow
+// #FF5733  cool orange
+// #C70039  cool red
+// #900C3F  cool maroon
+// #581845  cool purple
+// #DFFF00  #FFBF00 #FF7F50 #DE3163 #9FE2BF #40E0D0 #6495ED #CCCCFF
+
 function getWebviewContent(imageUri) {
 	return `<!DOCTYPE html>
   <html lang="en">
@@ -245,14 +285,20 @@ function getWebviewContent(imageUri) {
       <div id="workarea" style="display: none;">
 	  <table border="0" width="100%">
         <tr>
-          <td align="left"><button onClick="runButton()">Run Your Code</button></td>
+		  <td align="left">
+			<button onClick="runButton()">Run Your Code</button>&nbsp;Mode:
+			<select onChange="setRunMode()"name="runMode" id="runMode">
+              <option value="managed">Managed</option>
+              <option value="terminal">Terminal</option>
+            </select>
+		  </td>
           <td align="right"><button onClick="reset()">Choose a Different Challenge</button></td>
         </tr>
       </table>
 	  <br/>
 
 	  <!-- Form to get string input -->
-	  <div id="getsdiv" style="display: none;">
+	  <div id="getsdiv" style="display: none; border:2px solid #900C3F; padding: 5px; margin: 5px;">
 	  <label for="getsinput">Program Input:</label>
 	  <input type="text" id="getsinput" name="getsinput">
 	  <button onClick="sendGetsInput()">Enter</button> 
@@ -274,6 +320,13 @@ function getWebviewContent(imageUri) {
 			vscode.postMessage({
 				command: 'run',
 				text: 'This will get ignored but does not matter'
+			})
+		  }
+		  function setRunMode() {
+			strRunMode = document.getElementById("runMode").value;
+			vscode.postMessage({
+				command: 'mode',
+				text: strRunMode
 			})
 		  }
 		  function startProblem(problemNumber) {
