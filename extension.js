@@ -151,11 +151,12 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 	});
 	
 	let editorFileName = rootDir + "/problems/code" + chosenExampleNumber + ".rb";
-	let commandString = "ruby " + editorFileName;
-	log_info("Preparing to run ruby using command: " + commandString);
 
     if (runMode === TERMINAL_RUN_MODE) {
-	    // Don't create a new terminal if it already exists.
+		let commandString = "ruby " + editorFileName;
+		log_info("Preparing to run ruby using command: " + commandString);
+
+		// Don't create a new terminal if it already exists.
 	    let theList = vscode.window.terminals;
 	    let codeTerminal = undefined;
 	    theList.forEach(element => {
@@ -174,15 +175,30 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 	    codeTerminal.sendText(commandString, true);
 
     } else {
-		// Managed run mode
-		// Here we compare to the expected results
+		let temp_file_name = rootDir + "/problems/temp.rb";
+		if (fs.existsSync(temp_file_name)) {
+			try {
+				fs.unlinkSync(temp_file_name);
+			} catch (err) {
+				log_info("Caught an exception trying to delete temp file " + err);
+			}
+		}
+
+		var sourceCode = fs.readFileSync(editorFileName, 'utf8');
+		var modifiedSourceCode = sourceCode.replace(/puts/g, "yycc_puts");
+		modifiedSourceCode = modifiedSourceCode.replace(/gets/g, "yycc_gets");
+		fs.writeFile(temp_file_name, modifiedSourceCode, (err) => {
+			if (err) throw err;
+		});
+
+		// Managed run mode where we compare to the expected results
 		var expectedOutputStr = fs.readFileSync(rootDir + "/problems/answer" + chosenExampleNumber + ".txt", 'utf8');
 		var expectedOutput = expectedOutputStr.split(/\r?\n/);
 
 		try {
 			const { spawn } = require("child_process");
 			
-			const rb = spawn('ruby', [editorFileName]);
+			const rb = spawn('ruby', [temp_file_name]);
 			rb.stdout.on('data', (data) => {
 				log_info("ruby stdout: " + data);
 			});
@@ -317,6 +333,8 @@ function getWebviewContent(imageUri) {
 		  const vscode = acquireVsCodeApi();
 		  
 		  function runButton() {
+			document.getElementById("output").innerHTML = " ";
+			document.getElementById("feedback").innerHTML = " ";
 			vscode.postMessage({
 				command: 'run',
 				text: 'This will get ignored but does not matter'
@@ -491,41 +509,6 @@ function push(obj) {
   });
 }
 
-// function pop() {
-//   let file_name = rootDir + "/problems/r" + read_count.toString();
-//   console.log("Attempting to read from file " + file_name);
-//   if (fs.existsSync(file_name)) {
-//     console.log("file does exist");
-//     var d = new Date();
-//     var n = d.getTime();
-//     let s = fs.statSync(file_name);
-//     let diff = n - s.mtimeMs;
-//     console.log("The file is " + diff + " ms old");
-//     if (diff < 500) {
-//       // The file is too new, pretend it isn't there yet
-//       return null;
-//     }
-//     read_count = read_count + 1;
-//     const data = fs.readFileSync(file_name, 'utf8');
-//     console.log("The file data is " + data + ".");
-//     return data;
-//   } else {
-//     console.log("file does not exist");
-//   }
-//   return null;
-// }
-
-// function timeout() {
-//     setTimeout(function () {
-//         var o = pop();
-//         if (o == null) {
-//           // we are done
-//         } else {
-//           console.log("output: " + o);
-//           timeout();
-//         }
-//     }, 1000);
-// }
 
 var info_count = 1;
 function log_info(e) {
