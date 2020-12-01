@@ -142,7 +142,7 @@ function openExample(currentPanel, exampleNumber, rootDir, fs) {
 
 function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode) {
 	log_info("In runRubyProgram() for example " + chosenExampleNumber);
-	safeDeleteFile(rootDir + "/problems/out.txt");
+	safeDeleteFile(rootDir + "/log/out.txt");
 	resetMessageQueues();
 
 	// Auto save the current editor file, if the user has not done so already
@@ -204,7 +204,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 			});
 			rb.on('close', (code) => {
 				log_info("Your ruby program exited with code " + code);
-				var outputContent = fs.readFileSync(rootDir + "/problems/out.txt", 'utf8');
+				var outputContent = fs.readFileSync(rootDir + "/log/out.txt", 'utf8');
 				let parsedOutput = parseOutput(outputContent);
 				log_info("The parsed output is: " + parsedOutput);
 				let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
@@ -495,14 +495,14 @@ function deleteMessageFiles(prefix) {
 	var count = 1;
 	var done = false;
 	while (!done) {
-		var file_name = rootDir + "/problems/" + prefix + count.toString();
+		var file_name = rootDir + "/log/" + prefix + count.toString();
 		done = safeDeleteFile(file_name);
 		count = count + 1;
 	}
 }
 
 function push(obj) {
-  let file_name = rootDir + "/problems/j" + write_count.toString();
+  let file_name = rootDir + "/log/j" + write_count.toString();
   if (fs.existsSync(file_name)) {
     throw file_name + " already exists, cannot write";
   }
@@ -516,7 +516,7 @@ function push(obj) {
 
 var info_count = 1;
 function log_info(e) {
-	let file_name = rootDir + "/problems/info" + info_count.toString();;
+	let file_name = rootDir + "/log/info" + info_count.toString();;
 	info_count = info_count + 1;
 	fs.writeFile(file_name, e, (err) => {
 		if (err) throw err;
