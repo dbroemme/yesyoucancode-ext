@@ -56,8 +56,10 @@ function activate(context) {
 			  runMode = message.text;
 			  if (runMode === TERMINAL_RUN_MODE) {
 				showTerminalWindow();
+				setRubyRunMode(false);
 			  } else {
 				hideTerminalWindow();
+				setRubyRunMode(true);
 			  }
 			  return;
 			}
@@ -224,6 +226,13 @@ function getWebviewInput(currentPanel) {
 	currentPanel.webview.postMessage({ input: "gets" });
 }
 
+function setRubyRunMode(isManagedMode) {
+    let ruby_include_file = rootDir + "/problems/yycc.rb";
+	safeDeleteFile(ruby_include_file);
+	fs.writeFile(ruby_include_file, "MANAGED_RUN_MODE = " + isManagedMode.toString(), (err) => {
+		if (err) throw err;
+	});
+}
 function showTerminalWindow() {
 	toggleTerminalWindow(true);
 }
