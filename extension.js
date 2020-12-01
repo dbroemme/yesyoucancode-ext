@@ -113,15 +113,28 @@ function activate(context) {
 }
 exports.activate = activate;
 
+function safeDeleteFile(filename) {
+	log_info("Safe delete of " + filename);
+	if (fs.existsSync(filename)) {
+		try {
+			fs.unlinkSync(filename);
+		} catch (err) {
+			log_info("We caught an exception trying to delete " + filename);
+			log_info(err);
+		}
+		return false;
+	}
+	return true;
+}
+
 function openExample(currentPanel, exampleNumber, rootDir, fs) {
 	log_info("Going to open example " + exampleNumber);
 	let rubyFileUri = vscode.Uri.file(rootDir + "/problems/code" + exampleNumber + ".rb");
 	log_info("Construct ruby code file uri " + rubyFileUri);
 
 	var docHtml = fs.readFileSync(rootDir + "/problems/docs" + exampleNumber + ".html", 'utf8');
-	//log_info("the doc html is: " + docHtml);
-	currentPanel.webview.postMessage({ challenge: docHtml});
-	
+	var solutionHtml = fs.readFileSync(rootDir + "/problems/solution" + exampleNumber + ".rb", 'utf8');
+	currentPanel.webview.postMessage({ challenge: docHtml, solution: solutionHtml });
 	vscode.workspace.openTextDocument(rubyFileUri).then(
 		doc => vscode.window.showTextDocument(doc, vscode.ViewColumn.One)
 	);
@@ -129,23 +142,14 @@ function openExample(currentPanel, exampleNumber, rootDir, fs) {
 
 function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode) {
 	log_info("In runRubyProgram() for example " + chosenExampleNumber);
-	if (fs.existsSync(rootDir + "/problems/out.txt")) {
-		try {
-			fs.unlinkSync(rootDir + "/problems/out.txt");
-		} catch (err) {
-			log_info("We caught an exception");
-			log_info(err);
-		}
-	}
-	log_info("We deleted the out.txt file");
-
+	safeDeleteFile(rootDir + "/problems/out.txt");
 	resetMessageQueues();
 
 	// Auto save the current editor file, if the user has not done so already
 	// because we need the file itself to be saved on disk for the run command
 	let openTextDocuments = vscode.window.visibleTextEditors;
 	openTextDocuments.forEach(textDoc => {
-		if (textDoc.document.fileName.endsWith(chosenExampleNumber + ".rb")) {
+		if (textDoc.document.fileName.endsWith("code" + chosenExampleNumber + ".rb")) {
 			textDoc.document.save();
 		}
 	});
@@ -165,9 +169,8 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 	        }
 	    });
 	    if (codeTerminal) {
-	        log_info("We already have the code terminal window.");
+	        //log_info("We already have the code terminal window.");
 	    } else {
-			log_info("Creating the code terminal window.");
 	        codeTerminal = vscode.window.createTerminal("Run Your Code");
 	    }
 	    codeTerminal.show(true);
@@ -176,13 +179,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 
     } else {
 		let temp_file_name = rootDir + "/problems/temp.rb";
-		if (fs.existsSync(temp_file_name)) {
-			try {
-				fs.unlinkSync(temp_file_name);
-			} catch (err) {
-				log_info("Caught an exception trying to delete temp file " + err);
-			}
-		}
+		safeDeleteFile(temp_file_name);
 
 		var sourceCode = fs.readFileSync(editorFileName, 'utf8');
 		var modifiedSourceCode = sourceCode.replace(/puts/g, "yycc_puts");
@@ -225,7 +222,6 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 
 function getWebviewInput(currentPanel) {
 	currentPanel.webview.postMessage({ input: "gets" });
-	// TODO Do we need to wait now. I think so, right?
 }
 
 function showTerminalWindow() {
@@ -324,9 +320,11 @@ function getWebviewContent(imageUri) {
 	  <br/><b>Output</b><div>
 	  <pre id="output"> </pre>
 	  <br/></div>
-	  <br/><b>Feedback</b><div>
-	  <pre id="feedback"> </pre>
-	  <br/></div>
+	  <br/><b>Feedback</b><br/><br/>
+	  <div id="feedback"></div>
+
+	  <br/><br/><a href="#" onClick="toggleSolution()">Show Solution</a><br/>
+	  <div><pre id="solution" style="display: none;"></pre></div>
 
 	  </div>  <!-- end workarea -->
 	  <script>
@@ -389,7 +387,20 @@ function getWebviewContent(imageUri) {
 			  if (message.input) {
 				document.getElementById("getsdiv").style.display = "block";
 			  }
+			  if (message.solution) {
+				document.getElementById("solution").innerHTML = message.solution;
+			  }
 		   });
+
+		   function toggleSolution() {
+			  solutionDiv = document.getElementById("solution");
+			  if (solutionDiv.style.display == "block") {
+				  solutionDiv.style.display = "none";
+			  } else {
+				  solutionDiv.style.display = "block";
+			  }
+		   }
+
 	  </script>
   </body>
   </html>`;
@@ -400,19 +411,14 @@ function getWebviewContent(imageUri) {
 function deactivate() {}
 
 function parseOutput(strOutput) {
-	log_info("in parseOutput with " + strOutput + "." + strOutput.constructor.name + ".");
 	let lines = strOutput.toString('utf8').split(/\r?\n/)
-	log_info("got lines: " + lines);
 	var actualOutputLines = []
 	lines.forEach(element => {
-		log_info(element);
-		log_info("Line length: " + element.length);
 		if (element.length > 0) {
 			actualOutputLines.push(element);
 		}
 	});
 
-	// Show the difference in the feedback sent to the webview
 	// TODO Are there other Ruby extensions that can help the user with editing also
 	// TODO Add a hint button to provide a template
 	return {
@@ -422,7 +428,7 @@ function parseOutput(strOutput) {
 }
 
 function determineFeedback(parsedOutput, expectedOutput) {
-	log_info("in determineFeedback. Actual length: " + parsedOutput.length + "  Expected length:" + expectedOutput.length);
+	log_info("DetermineFeedback. Actual lines: " + parsedOutput.length + " vs expected:" + expectedOutput.length);
 	log_info("---------  Actual ------------");
 	log_info(parsedOutput);
 	log_info("--------- Expected -----------");
@@ -431,7 +437,9 @@ function determineFeedback(parsedOutput, expectedOutput) {
 	var actualCount = 0;
 	var expectedOutputCount = 0;
 	var done = false;
+	var feedbackLines = [];
 	var match = false;
+
 	while (expectedOutputCount < expectedOutput.length && !done) {
 		log_info("Comparing lines " + actualCount + ", " + expectedOutputCount);
 		let expectedLine = expectedOutput[expectedOutputCount].replace(/[\n\r]+/g, '');
@@ -448,18 +456,24 @@ function determineFeedback(parsedOutput, expectedOutput) {
 			}
 		} else {
 			log_info("Line " + actualCount + " has a match.");
+			feedbackLines.push("<span style='color: #699A52;'>" + expectedLine + "</span>");
 			expectedOutputCount = expectedOutputCount + 1;
-			if (expectedOutputCount >= expectedOutput.length) {
-				match = true;
-			}
 		}
 	}
-	if (match) {
-		log_info("We got a match");
-		return "We got a match";
+
+	if (expectedOutputCount >= expectedOutput.length) {
+		match = true;
 	}
-	log_info("No match");
-	return "No match";
+	while (expectedOutputCount < expectedOutput.length) {
+		let expectedLine = expectedOutput[expectedOutputCount].replace(/[\n\r]+/g, '');
+		feedbackLines.push("<span style='color: #C70039;'>" + expectedLine + "</span>");
+		expectedOutputCount = expectedOutputCount + 1;
+	}
+
+	if (match) {
+		return "Your program is correct!<br/><br/>".concat(feedbackLines.join("<br/>"));
+	}
+    return "Looks like we aren't quite there yet.<br/><br/>".concat(feedbackLines.join("<br/>"));
 }
 
 
@@ -482,17 +496,7 @@ function deleteMessageFiles(prefix) {
 	var done = false;
 	while (!done) {
 		var file_name = rootDir + "/problems/" + prefix + count.toString();
-		if (fs.existsSync(file_name)) {
-			try {
-				fs.unlinkSync(file_name);
-			} catch (err) {
-				log_info("Caught an exception trying to delete file " + file_name);
-				log_info(err);
-				done = true;
-			}
-		} else {
-			done = true;
-		}
+		done = safeDeleteFile(file_name);
 		count = count + 1;
 	}
 }
