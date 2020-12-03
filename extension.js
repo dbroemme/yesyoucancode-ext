@@ -276,33 +276,27 @@ function toggleTerminalWindow(showFlag) {
 
 function getWebviewContent(imageUri) {
 	return `<!DOCTYPE html>
-  <html lang="en">
-  <head>
-	  <meta charset="UTF-8">
-	  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-	  <title>Yes, You Can Code</title>
-	  <style>
-	  pre {
-		background: #f4f4f4;
-		border: 1px solid #ddd;
-		border-left: 3px solid #5299D5;
-		color: #666;
-		page-break-inside: avoid;
-		font-family: monospace;
-		font-size: 15px;
-		line-height: 1.6;
-		margin-bottom: 1.6em;
-		max-width: 100%;
-		overflow: auto;
-		padding: 1em 1.5em;
-		display: block;
-		word-wrap: break-word;
-	}
-	</style>
+    <html lang="en">
+    <head>
+	    <meta charset="UTF-8">
+	    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	    <title>Yes, You Can Code</title>
+	    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+		<style>
+		  examplenode {
+			text-align: center;
+			vertical-align: middle;
+			font-family: arial,helvetica;
+			cursor: default;
+			border: 2px solid #b5d9ea;
+			border-radius: 5px;
+		  }
+	    </style>
   </head>
   <body>
 	  <img src="${imageUri}"/><br/><br/>
 	  <div id="challengemap">&nbsp;<br/>&nbsp;</div>
+	  <div id="chart_div"></div>
       <div id="workarea" style="display: none;">
 	  <table border="0" width="100%">
         <tr>
@@ -327,7 +321,7 @@ function getWebviewContent(imageUri) {
 
 	  <div id="challenge">&nbsp;</div><br/>
 	  <div id="outputDiv"><b>Output</b>
-	  <pre id="output"> </pre>
+	  <pre id="output" style="background: #f4f4f4; border: 1px solid #ddd; border-left: 3px solid #5299D5; color: #666; page-break-inside: avoid; font-family: monospace; font-size: 15px; line-height: 1.6; margin-bottom: 1.6em; max-width: 100%; overflow: auto; padding: 1em 1.5em; display: block; word-wrap: break-word;"> </pre>
 	  </div>
 	  
 	  <div id="feedbackDiv"><b>Feedback</b><br/><br/>
@@ -366,6 +360,7 @@ function getWebviewContent(imageUri) {
 		  function startProblem(problemNumber) {
 			document.getElementById("workarea").style.display = "block";
 			document.getElementById("challengemap").style.display = "none";
+			document.getElementById("chart_div").style.display = "none";
 			vscode.postMessage({
 				command: 'start',
 				text: problemNumber
@@ -373,6 +368,7 @@ function getWebviewContent(imageUri) {
 		  }
 		  function reset() {
 			document.getElementById("challengemap").style.display = "block";
+			document.getElementById("chart_div").style.display = "block";
 			document.getElementById("workarea").style.display = "none";
 			document.getElementById("output").innerHTML = " ";
 			document.getElementById("feedback").innerHTML = " ";
@@ -419,6 +415,39 @@ function getWebviewContent(imageUri) {
 			  }
 		   }
 
+		   // Challenge map uses Google OrgChart library
+		   google.charts.load('current', {packages:["orgchart"]});
+		   google.charts.setOnLoadCallback(drawChart);
+
+		   function drawChart() {
+			   var data = new google.visualization.DataTable();
+			   data.addColumn('string', 'Name');
+			   data.addColumn('string', 'Manager');
+			   data.addColumn('string', 'ToolTip');
+			   data.addRows([
+				   ['1. Bitcoin Price',   '', 'Get the price of Bitcoin'],
+				   ['2. Another Example', '1. Bitcoin Price', ''],
+				   ['3. Another Example', '1. Bitcoin Price', '']
+			   ]);
+
+			   var chart = new google.visualization.OrgChart(document.getElementById('chart_div'));
+
+			   function selectHandler() {
+				   var selectedItem = chart.getSelection()[0];
+				   var selectedIndex = selectedItem.row;
+				   var rowName = data.getFormattedValue(selectedIndex, 0);
+				   startProblem(rowName[0]);
+			   }
+
+			   // Listen for the 'select' event, and call my function selectHandler() when
+			   // the user selects something on the chart.
+			   google.visualization.events.addListener(chart, 'select', selectHandler);
+
+			   // Draw the chart, setting the allowHtml option to true for the tooltips.
+			   chart.draw(data, {'allowHtml':true, 'nodeClass':'examplenode', 'selectedNodeClass':'examplenode'});
+		   }
+ 
+		   drawChart();
 	  </script>
   </body>
   </html>`;
