@@ -325,12 +325,14 @@ function getWebviewContent(imageUri) {
 	  <button onClick="sendGetsInput()">Enter</button> 
 	  </div>
 
-	  <div id="challenge">&nbsp;</div>
-	  <br/><b>Output</b><div>
+	  <div id="challenge">&nbsp;</div><br/>
+	  <div id="outputDiv"><b>Output</b>
 	  <pre id="output"> </pre>
-	  <br/></div>
-	  <br/><b>Feedback</b><br/><br/>
+	  </div>
+	  
+	  <div id="feedbackDiv"><b>Feedback</b><br/><br/>
 	  <div id="feedback"></div>
+	  </div>
 
 	  <br/><br/><a href="#" onClick="toggleSolution()">Show Solution</a><br/>
 	  <div><pre id="solution" style="display: none;"></pre></div>
@@ -349,6 +351,13 @@ function getWebviewContent(imageUri) {
 		  }
 		  function setRunMode() {
 			strRunMode = document.getElementById("runMode").value;
+			if (strRunMode == "managed") {
+				document.getElementById("outputDiv").style.display = "block";
+			    document.getElementById("feedbackDiv").style.display = "block";
+			} else {
+				document.getElementById("outputDiv").style.display = "none";
+			    document.getElementById("feedbackDiv").style.display = "none";
+			}
 			vscode.postMessage({
 				command: 'mode',
 				text: strRunMode
