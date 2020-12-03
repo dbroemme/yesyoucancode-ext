@@ -81,9 +81,6 @@ function activate(context) {
 	hideTerminalWindow();
 	//vscode.commands.executeCommand("workbench.action.closeSidebar");
 	//vscode.commands.executeCommand("workbench.action.toggleActivityBarVisibility");
-
-	var mapHtml = fs.readFileSync(context.extensionPath + "/problems/map.html", 'utf8');
-	currentPanel.webview.postMessage({ challengemap: mapHtml });
 	
 	var fileSystemWatcher = vscode.workspace.createFileSystemWatcher("**/{r,out}*");
     fileSystemWatcher.ignoreCreateEvents = false;
@@ -296,7 +293,7 @@ function getWebviewContent(imageUri, challengeRows) {
   </head>
   <body>
 	  <img src="${imageUri}"/><br/><br/>
-	  <div id="challengemap">&nbsp;<br/>&nbsp;</div>
+	  <div id="challengemap"><b>Select a challenge to get started</b><br/>&nbsp;</div>
 	  <div id="chart_div"></div>
       <div id="workarea" style="display: none;">
 	  <table border="0" width="100%">
