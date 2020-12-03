@@ -31,7 +31,8 @@ function activate(context) {
 	);
 	let imageUri = vscode.Uri.file(context.extensionPath + "/media/TitleSlideYesYouCanCode.png");
 	const imageSrc = currentPanel.webview.asWebviewUri(imageUri);
-	currentPanel.webview.html = getWebviewContent(imageSrc);
+	var challengeRows = fs.readFileSync(context.extensionPath + "/problems/challengeRows.txt", 'utf8');
+	currentPanel.webview.html = getWebviewContent(imageSrc, challengeRows);
 	currentPanel.onDidDispose(
 	  () => {
 		  currentPanel = undefined;
@@ -274,7 +275,7 @@ function toggleTerminalWindow(showFlag) {
 // #581845  cool purple
 // #DFFF00  #FFBF00 #FF7F50 #DE3163 #9FE2BF #40E0D0 #6495ED #CCCCFF
 
-function getWebviewContent(imageUri) {
+function getWebviewContent(imageUri, challengeRows) {
 	return `<!DOCTYPE html>
     <html lang="en">
     <head>
@@ -424,11 +425,7 @@ function getWebviewContent(imageUri) {
 			   data.addColumn('string', 'Name');
 			   data.addColumn('string', 'Manager');
 			   data.addColumn('string', 'ToolTip');
-			   data.addRows([
-				   ['1. Bitcoin Price',   '', 'Get the price of Bitcoin'],
-				   ['2. Another Example', '1. Bitcoin Price', ''],
-				   ['3. Another Example', '1. Bitcoin Price', '']
-			   ]);
+			   ${challengeRows}
 
 			   var chart = new google.visualization.OrgChart(document.getElementById('chart_div'));
 
