@@ -367,7 +367,7 @@ function getWebviewContent(imageUri, challengeRows) {
 	    <pre id="output" style="background: #f4f4f4; border: 1px solid #ddd; border-left: 3px solid #5299D5; color: #666; page-break-inside: avoid; font-family: monospace; font-size: 15px; line-height: 1.6; margin-bottom: 1.6em; max-width: 100%; overflow: auto; padding: 1em 1.5em; display: block; word-wrap: break-word;"> </pre>
 	  
 	    <!-- Form to get string input -->
-	    <div id="getsdiv" style="display: none; border:2px solid #900C3F; padding: 5px; margin: 5px;">
+	    <div id="getsdiv" style="display: none; border:2px solid #FF7F50; padding: 5px; margin: 5px;">
 	      <label for="getsinput">Program Input:</label>
 	      <input type="text" id="getsinput" name="getsinput">
 	      <button onClick="sendGetsInput()">Enter</button> 
@@ -381,7 +381,7 @@ function getWebviewContent(imageUri, challengeRows) {
 		<a href="#" onClick="openirb()">Interactive Ruby</a>
 		<br/>
 	    <div><pre id="solution" style="display: none;"></pre></div>
-
+        <br/><br/>
 	  </div>  <!-- end workarea -->
 	  <script>
 		  const vscode = acquireVsCodeApi();
