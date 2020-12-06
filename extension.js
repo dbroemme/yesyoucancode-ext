@@ -145,22 +145,42 @@ function openExample(currentPanel, exampleNumber, rootDir, fs) {
 
 function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode) {
 	log_info("In runRubyProgram() for example " + chosenExampleNumber);
-	safeDeleteFile(rootDir + "/log/out.txt");
+	let temp_file_name = rootDir + "/problems/temp.rb";
+	let out_file_name = rootDir + "/log/out.txt";
+	safeDeleteFile(temp_file_name);
+    safeDeleteFile(out_file_name);
 	resetMessageQueues();
 
 	// Auto save the current editor file, if the user has not done so already
 	// because we need the file itself to be saved on disk for the run command
 	let openTextDocuments = vscode.window.visibleTextEditors;
 	openTextDocuments.forEach(textDoc => {
+		log_info("Checking file " + textDoc.document.fileName);
 		if (textDoc.document.fileName.endsWith("code" + chosenExampleNumber + ".rb")) {
-			textDoc.document.save();
+			log_info("We have found the editor with your code to run. Number of lines: "
+				+ textDoc.document.lineCount);
+			var sourceCode = "";
+			var i;
+			for (i = 0; i < textDoc.document.lineCount; i++) {
+				var lineOfSource = textDoc.document.lineAt(i).text;
+				if (runMode === MANAGED_RUN_MODE) {
+					log_info("Converting line " + lineOfSource);
+					var tempSourceCode = lineOfSource.replace(/puts/g, "yycc_puts");
+					tempSourceCode = tempSourceCode.replace(/gets/g, "yycc_gets");
+					sourceCode = sourceCode + tempSourceCode + '\n';
+				} else {
+					log_info("Leaving alone line " + lineOfSource);
+					sourceCode = sourceCode + lineOfSource + '\n';
+				}
+			}
+			fs.writeFile(temp_file_name, sourceCode, (err) => {
+				if (err) throw err;
+			});
 		}
 	});
 	
-	let editorFileName = rootDir + "/problems/code" + chosenExampleNumber + ".rb";
-
     if (runMode === TERMINAL_RUN_MODE) {
-		let commandString = "ruby " + editorFileName;
+		let commandString = "ruby problems/temp.rb";
 		log_info("Preparing to run ruby using command: " + commandString);
 
 		// Don't create a new terminal if it already exists.
@@ -181,16 +201,6 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 	    codeTerminal.sendText(commandString, true);
 
     } else {
-		let temp_file_name = rootDir + "/problems/temp.rb";
-		safeDeleteFile(temp_file_name);
-
-		var sourceCode = fs.readFileSync(editorFileName, 'utf8');
-		var modifiedSourceCode = sourceCode.replace(/puts/g, "yycc_puts");
-		modifiedSourceCode = modifiedSourceCode.replace(/gets/g, "yycc_gets");
-		fs.writeFile(temp_file_name, modifiedSourceCode, (err) => {
-			if (err) throw err;
-		});
-
 		// Managed run mode where we compare to the expected results
 		var expectedOutputStr = fs.readFileSync(rootDir + "/problems/answer" + chosenExampleNumber + ".txt", 'utf8');
 		var expectedOutputRaw = expectedOutputStr.split(/\r?\n/);
@@ -230,11 +240,9 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 						feedback: "Looks like your <span style='color: #DE3163;'>program had an error, see the output for details.</span>"
 					});
 				} else {
-					let program_out_file = rootDir + "/log/out.txt";
-					if (fs.existsSync(program_out_file)) {
-						var outputContent = fs.readFileSync(program_out_file, 'utf8');
+					if (fs.existsSync(out_file_name)) {
+						var outputContent = fs.readFileSync(out_file_name, 'utf8');
 						let parsedOutput = parseOutput(outputContent);
-						log_info("The parsed output is: " + parsedOutput);
 						let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
 						log_info("The feedback is: " + feedback);
 						// Send info back to the webview for display
@@ -466,6 +474,7 @@ function getWebviewContent(imageUri, challengeRows) {
 			  }
 			  if (message.input) {
 				document.getElementById("getsdiv").style.display = "block";
+				document.getElementById("getsinput").focus();
 			  }
 			  if (message.solution) {
 				document.getElementById("solution").innerHTML = message.solution;
