@@ -203,29 +203,29 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 
 		try {
 			const { spawn } = require("child_process");
-			var errorOutput = "";
 			const rb = spawn('ruby', [temp_file_name]);
 			rb.stdout.on('data', (data) => {
 				log_info("ruby stdout: " + data);
 			});
 			rb.stderr.on('data', (data) => {
 				log_info("ruby stderr: " + data);
-				let comparison = data.indexOf("temp.rb:");
+				let strData = data.toString();
+				let comparison = strData.indexOf("temp.rb:");
 				log_info("Comparison value is " + comparison);
+				var errorToShow = strData;
 				if (comparison > 0) {
-					errorOutput = errorOutput +  "Error at line " + data.substring(comparison + 8);
-				} else {
-					errorOutput = errorOutput + data;
+					errorToShow = "Error at line " + strData.substring(comparison + 8);
 				}
-				log_info("Error output is now: " + errorOutput);
-			});
+				errorToShow = errorToShow.replace("<", "");
+				errorToShow = errorToShow.replace(">", "");
+				log_info("Sending deltaoutput " + errorToShow.toString());
+				currentPanel.webview.postMessage({
+					deltaoutput: errorToShow
+				});
+		    });
 			rb.on('close', (code) => {
 				log_info("Your ruby program exited with code " + code);
 				if (code == 1) {
-					log_info("About to write error output: " + errorOutput);
-					fs.writeFile(rootDir + "/log/out.txt", errorOutput, (err) => {
-						if (err) throw err;
-					});
 					currentPanel.webview.postMessage({
 						feedback: "Looks like your <span style='color: #DE3163;'>program had an error, see the output for details.</span>"
 					});
@@ -241,7 +241,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 						currentPanel.webview.postMessage({ feedback: feedback });
 					} else {
 						currentPanel.webview.postMessage({
-							feedback: "<span style='color: #DE3163;'>Your program did not generate any output or results.</span>"
+							feedback: "Your program <span style='color: #DE3163;'>did not generate any output or results.</span>"
 						});
 					}
 				}
@@ -449,6 +449,10 @@ function getWebviewContent(imageUri, challengeRows) {
 			  if (message.output) {
 			      document.getElementById("output").innerHTML = message.output;
 			  }
+			  if (message.deltaoutput) {
+				  let currentContent = document.getElementById("output").innerHTML;
+				  document.getElementById("output").innerHTML = currentContent + message.deltaoutput;
+ 			  }
 			  if (message.challengemap) {
 				  document.getElementById("challengemap").innerHTML = message.challengemap;
 			  }
