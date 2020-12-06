@@ -53,6 +53,9 @@ function activate(context) {
 			case 'gets':
 			  push(message.text);
 			  return;
+			case 'irb':
+			  openirb();
+			  return;
 			case 'mode':
 			  runMode = message.text;
 			  if (runMode === TERMINAL_RUN_MODE) {
@@ -190,34 +193,85 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 
 		// Managed run mode where we compare to the expected results
 		var expectedOutputStr = fs.readFileSync(rootDir + "/problems/answer" + chosenExampleNumber + ".txt", 'utf8');
-		var expectedOutput = expectedOutputStr.split(/\r?\n/);
+		var expectedOutputRaw = expectedOutputStr.split(/\r?\n/);
+		var expectedOutput = []
+		expectedOutputRaw.forEach(element => {
+			if (element.length > 0) {
+				expectedOutput.push(element);
+			}
+		});
 
 		try {
 			const { spawn } = require("child_process");
-			
+			var errorOutput = "";
 			const rb = spawn('ruby', [temp_file_name]);
 			rb.stdout.on('data', (data) => {
 				log_info("ruby stdout: " + data);
 			});
 			rb.stderr.on('data', (data) => {
 				log_info("ruby stderr: " + data);
+				let comparison = data.indexOf("temp.rb:");
+				log_info("Comparison value is " + comparison);
+				if (comparison > 0) {
+					errorOutput = errorOutput +  "Error at line " + data.substring(comparison + 8);
+				} else {
+					errorOutput = errorOutput + data;
+				}
+				log_info("Error output is now: " + errorOutput);
 			});
 			rb.on('close', (code) => {
 				log_info("Your ruby program exited with code " + code);
-				var outputContent = fs.readFileSync(rootDir + "/log/out.txt", 'utf8');
-				let parsedOutput = parseOutput(outputContent);
-				log_info("The parsed output is: " + parsedOutput);
-				let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
-				log_info("The feedback is: " + feedback);
-				// Send info back to the webview for display
-				currentPanel.webview.postMessage({ feedback: feedback });
-			});
+				if (code == 1) {
+					log_info("About to write error output: " + errorOutput);
+					fs.writeFile(rootDir + "/log/out.txt", errorOutput, (err) => {
+						if (err) throw err;
+					});
+					currentPanel.webview.postMessage({
+						feedback: "Looks like your <span style='color: #DE3163;'>program had an error, see the output for details.</span>"
+					});
+				} else {
+					let program_out_file = rootDir + "/log/out.txt";
+					if (fs.existsSync(program_out_file)) {
+						var outputContent = fs.readFileSync(program_out_file, 'utf8');
+						let parsedOutput = parseOutput(outputContent);
+						log_info("The parsed output is: " + parsedOutput);
+						let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
+						log_info("The feedback is: " + feedback);
+						// Send info back to the webview for display
+						currentPanel.webview.postMessage({ feedback: feedback });
+					} else {
+						currentPanel.webview.postMessage({
+							feedback: "<span style='color: #DE3163;'>Your program did not generate any output or results.</span>"
+						});
+					}
+				}
+		    });
 
 		} catch (err) {
 			log_info("We caught an exception");
 			log_info(err);
 		}
 	}
+}
+
+function openirb() {
+	showTerminalWindow();
+	setRubyRunMode(true);
+	// Don't create a new terminal if it already exists.
+	let theList = vscode.window.terminals;
+	let codeTerminal = undefined;
+	theList.forEach(element => {
+		if (element.name == "Run Your Code") {
+			codeTerminal = element;
+		}
+	});
+	if (codeTerminal) {
+		//log_info("We already have the code terminal window.");
+	} else {
+		codeTerminal = vscode.window.createTerminal("Run Your Code");
+	}
+	codeTerminal.show(false);
+	codeTerminal.sendText("irb", true);
 }
 
 function getWebviewInput(currentPanel) {
@@ -295,44 +349,49 @@ function getWebviewContent(imageUri, challengeRows) {
 	  <img src="${imageUri}"/><br/><br/>
 	  <div id="challengemap"><b>Select a challenge to get started</b><br/>&nbsp;</div>
 	  <div id="chart_div"></div>
-      <div id="workarea" style="display: none;">
-	  <table border="0" width="100%">
-        <tr>
-		  <td align="left">
-			<button onClick="runButton()">Run Your Code</button>&nbsp;Mode:
-			<select onChange="setRunMode()"name="runMode" id="runMode">
-              <option value="managed">Managed</option>
-              <option value="terminal">Terminal</option>
-            </select>
-		  </td>
-          <td align="right"><button onClick="reset()">Choose a Different Challenge</button></td>
-        </tr>
-      </table>
-	  <br/>
 
-	  <!-- Form to get string input -->
-	  <div id="getsdiv" style="display: none; border:2px solid #900C3F; padding: 5px; margin: 5px;">
-	  <label for="getsinput">Program Input:</label>
-	  <input type="text" id="getsinput" name="getsinput">
-	  <button onClick="sendGetsInput()">Enter</button> 
-	  </div>
+	  <div id="workarea" style="display: none;">
+	    <table border="0" width="100%">
+	      <tr>
+		    <td align="left">
+		      <button onClick="runButton()">Run Your Code</button>&nbsp;Mode:
+		      <select onChange="setRunMode()"name="runMode" id="runMode">
+			    <option value="managed">Managed</option>
+			    <option value="terminal">Terminal</option>
+		      </select>
+		    </td>
+		    <td align="right"><button onClick="reset()">Choose a Different Challenge</button></td>
+	      </tr>
+	    </table>
 
-	  <div id="challenge">&nbsp;</div><br/>
-	  <div id="outputDiv"><b>Output</b>
-	  <pre id="output" style="background: #f4f4f4; border: 1px solid #ddd; border-left: 3px solid #5299D5; color: #666; page-break-inside: avoid; font-family: monospace; font-size: 15px; line-height: 1.6; margin-bottom: 1.6em; max-width: 100%; overflow: auto; padding: 1em 1.5em; display: block; word-wrap: break-word;"> </pre>
-	  </div>
+	    <pre id="output" style="background: #f4f4f4; border: 1px solid #ddd; border-left: 3px solid #5299D5; color: #666; page-break-inside: avoid; font-family: monospace; font-size: 15px; line-height: 1.6; margin-bottom: 1.6em; max-width: 100%; overflow: auto; padding: 1em 1.5em; display: block; word-wrap: break-word;"> </pre>
 	  
-	  <div id="feedbackDiv"><b>Feedback</b><br/><br/>
-	  <div id="feedback"></div>
-	  </div>
+	    <!-- Form to get string input -->
+	    <div id="getsdiv" style="display: none; border:2px solid #900C3F; padding: 5px; margin: 5px;">
+	      <label for="getsinput">Program Input:</label>
+	      <input type="text" id="getsinput" name="getsinput">
+	      <button onClick="sendGetsInput()">Enter</button> 
+	    </div>
 
-	  <br/><br/><a href="#" onClick="toggleSolution()">Show Solution</a><br/>
-	  <div><pre id="solution" style="display: none;"></pre></div>
+	    <div id="feedback" style="display: none; padding: 10px; border: 1px solid #FFFFFF; border-radius: 5px;"></div>
+
+	    <div id="challenge" style="padding-top: 5px;">&nbsp;</div><br/>
+
+		<br/><a href="#" onClick="toggleSolution()">Show Solution</a>&nbsp;&nbsp;
+		<a href="#" onClick="openirb()">Interactive Ruby</a>
+		<br/>
+	    <div><pre id="solution" style="display: none;"></pre></div>
 
 	  </div>  <!-- end workarea -->
 	  <script>
 		  const vscode = acquireVsCodeApi();
 		  
+		  function openirb() {
+			document.getElementById("runMode").selectedIndex = 1;
+			vscode.postMessage({
+				command: 'irb'
+			})
+		  }
 		  function runButton() {
 			document.getElementById("output").innerHTML = " ";
 			document.getElementById("feedback").innerHTML = " ";
@@ -344,11 +403,9 @@ function getWebviewContent(imageUri, challengeRows) {
 		  function setRunMode() {
 			strRunMode = document.getElementById("runMode").value;
 			if (strRunMode == "managed") {
-				document.getElementById("outputDiv").style.display = "block";
-			    document.getElementById("feedbackDiv").style.display = "block";
+			    document.getElementById("feedback").style.display = "block";
 			} else {
-				document.getElementById("outputDiv").style.display = "none";
-			    document.getElementById("feedbackDiv").style.display = "none";
+			    document.getElementById("feedback").style.display = "none";
 			}
 			vscode.postMessage({
 				command: 'mode',
@@ -370,6 +427,7 @@ function getWebviewContent(imageUri, challengeRows) {
 			document.getElementById("workarea").style.display = "none";
 			document.getElementById("output").innerHTML = " ";
 			document.getElementById("feedback").innerHTML = " ";
+			document.getElementById("feedback").style.display = "none";
 		  }
 		  function sendGetsInput() {
 			getsInput = document.getElementById("getsinput").value;
@@ -385,7 +443,8 @@ function getWebviewContent(imageUri, challengeRows) {
 		  window.addEventListener('message', event => {
 			  const message = event.data; // The JSON data our extension sent
 			  if (message.feedback) {
-			  	  document.getElementById("feedback").innerHTML = message.feedback;
+				  document.getElementById("feedback").innerHTML = message.feedback;
+				  document.getElementById("feedback").style.display = "block";
 			  }
 			  if (message.output) {
 			      document.getElementById("output").innerHTML = message.output;
@@ -460,8 +519,6 @@ function parseOutput(strOutput) {
 		}
 	});
 
-	// TODO Are there other Ruby extensions that can help the user with editing also
-	// TODO Add a hint button to provide a template
 	return {
 		output: actualOutputLines.join("<br/>"),
 		asarray: actualOutputLines
@@ -469,7 +526,6 @@ function parseOutput(strOutput) {
 }
 
 function determineFeedback(parsedOutput, expectedOutput) {
-	log_info("DetermineFeedback. Actual lines: " + parsedOutput.length + " vs expected:" + expectedOutput.length);
 	log_info("---------  Actual ------------");
 	log_info(parsedOutput);
 	log_info("--------- Expected -----------");
@@ -497,7 +553,7 @@ function determineFeedback(parsedOutput, expectedOutput) {
 			}
 		} else {
 			log_info("Line " + actualCount + " has a match.");
-			feedbackLines.push("<span style='color: #699A52;'>" + expectedLine + "</span>");
+			feedbackLines.push("Found text: <span style='color: #FF7F50;'>" + expectedLine + "</span>");
 			expectedOutputCount = expectedOutputCount + 1;
 		}
 	}
@@ -507,14 +563,14 @@ function determineFeedback(parsedOutput, expectedOutput) {
 	}
 	while (expectedOutputCount < expectedOutput.length) {
 		let expectedLine = expectedOutput[expectedOutputCount].replace(/[\n\r]+/g, '');
-		feedbackLines.push("<span style='color: #C70039;'>" + expectedLine + "</span>");
+		feedbackLines.push("Did not find: <span style='color: #DE3163;'>" + expectedLine + "</span>");
 		expectedOutputCount = expectedOutputCount + 1;
 	}
 
 	if (match) {
-		return "Your program is correct!<br/><br/>".concat(feedbackLines.join("<br/>"));
+		return "Your program is correct!<br/>".concat(feedbackLines.join("<br/>"));
 	}
-    return "Looks like we aren't quite there yet.<br/><br/>".concat(feedbackLines.join("<br/>"));
+    return "Looks like we aren't quite there yet.<br/>".concat(feedbackLines.join("<br/>"));
 }
 
 
