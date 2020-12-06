@@ -111,7 +111,7 @@ function activate(context) {
 			getWebviewInput(currentPanel);
 		} else if (watchedFileName === "out.txt") {
 			var outputContent = fs.readFileSync(e.path, 'utf8');
-			log_info("output file created: " + outputContent + ".");
+			//log_info("output file created: " + outputContent + ".");
    	        currentPanel.webview.postMessage({ output: outputContent});
 		} 
     });
@@ -122,7 +122,7 @@ function activate(context) {
 		//vscode.window.showInformationMessage(watchedFileName + "  was changed: " + e);
 		if (watchedFileName === "out.txt") {
 			var outputContent = fs.readFileSync(e.path, 'utf8');
-			log_info("output file updated: " + outputContent + ".");
+			//log_info("output file updated: " + outputContent + ".");
 			currentPanel.webview.postMessage({ output: outputContent});
 		}
     });
@@ -130,7 +130,7 @@ function activate(context) {
 exports.activate = activate;
 
 function safeDeleteFile(filename) {
-	log_info("Safe delete of " + filename);
+	//log_info("Safe delete of " + filename);
 	if (fs.existsSync(filename)) {
 		try {
 			fs.unlinkSync(filename);
@@ -144,9 +144,9 @@ function safeDeleteFile(filename) {
 }
 
 function openExample(currentPanel, exampleNumber, rootDir, fs) {
-	log_info("Going to open example " + exampleNumber);
+	//log_info("Going to open example " + exampleNumber);
 	let rubyFileUri = vscode.Uri.file(rootDir + "/problems/code" + exampleNumber + ".rb");
-	log_info("Construct ruby code file uri " + rubyFileUri);
+	//log_info("Construct ruby code file uri " + rubyFileUri);
 
 	var docHtml = fs.readFileSync(rootDir + "/problems/docs" + exampleNumber + ".html", 'utf8');
 	var solutionHtml = fs.readFileSync(rootDir + "/problems/solution" + exampleNumber + ".rb", 'utf8');
@@ -157,7 +157,7 @@ function openExample(currentPanel, exampleNumber, rootDir, fs) {
 }
 
 function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode) {
-	log_info("In runRubyProgram() for example " + chosenExampleNumber);
+	//log_info("In runRubyProgram() for example " + chosenExampleNumber);
 	let temp_file_name = rootDir + "/problems/temp.rb";
 	let out_file_name = rootDir + "/log/out.txt";
 	safeDeleteFile(temp_file_name);
@@ -169,8 +169,8 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 	let openTextDocuments = vscode.window.visibleTextEditors;
 	openTextDocuments.forEach(textDoc => {
 		if (textDoc.document.fileName.endsWith("code" + chosenExampleNumber + ".rb")) {
-			log_info("We have found the editor with your code to run. Number of lines: "
-				+ textDoc.document.lineCount);
+			//log_info("We have found the editor with your code to run. Number of lines: "
+			//	+ textDoc.document.lineCount);
 			var sourceCode = "";
 			var i;
 			for (i = 0; i < textDoc.document.lineCount; i++) {
@@ -191,7 +191,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 	
     if (runMode === TERMINAL_RUN_MODE) {
 		let commandString = "ruby problems/temp.rb";
-		log_info("Preparing to run ruby using command: " + commandString);
+		//log_info("Preparing to run ruby using command: " + commandString);
 
 		// Don't create a new terminal if it already exists.
 	    let theList = vscode.window.terminals;
@@ -237,7 +237,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 				}
 				errorToShow = errorToShow.replace("<", "");
 				errorToShow = errorToShow.replace(">", "");
-				log_info("Sending deltaoutput " + errorToShow.toString());
+				//log_info("Sending deltaoutput " + errorToShow.toString());
 				currentPanel.webview.postMessage({
 					deltaoutput: errorToShow
 				});
@@ -253,7 +253,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 						var outputContent = fs.readFileSync(out_file_name, 'utf8');
 						let parsedOutput = parseOutput(outputContent);
 						let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
-						log_info("The feedback is: " + feedback);
+						//log_info("The feedback is: " + feedback);
 						// Send info back to the webview for display
 						currentPanel.webview.postMessage({ feedback: feedback });
 					} else {
@@ -319,9 +319,9 @@ function toggleTerminalWindow(showFlag) {
 		}
 	);
 	if (codeTerminal) {
-		log_info("We already have the code terminal window.");
+		//log_info("We already have the code terminal window.");
 	} else {
-		log_info("Creating the code terminal window.");
+		//log_info("Creating the code terminal window.");
 		codeTerminal = vscode.window.createTerminal("Run Your Code");
 	}
 	codeTerminal.show(true);
@@ -553,11 +553,11 @@ function parseOutput(strOutput) {
 }
 
 function determineFeedback(parsedOutput, expectedOutput) {
-	log_info("---------  Actual ------------");
-	log_info(parsedOutput);
-	log_info("--------- Expected -----------");
-	log_info(expectedOutput);
-	log_info("------------------------------");
+	//log_info("---------  Actual ------------");
+	//log_info(parsedOutput);
+	//log_info("--------- Expected -----------");
+	//log_info(expectedOutput);
+	//log_info("------------------------------");
 	var actualCount = 0;
 	var expectedOutputCount = 0;
 	var done = false;
@@ -565,20 +565,20 @@ function determineFeedback(parsedOutput, expectedOutput) {
 	var match = false;
 
 	while (expectedOutputCount < expectedOutput.length && !done) {
-		log_info("Comparing lines " + actualCount + ", " + expectedOutputCount);
+		//log_info("Comparing lines " + actualCount + ", " + expectedOutputCount);
 		let expectedLine = expectedOutput[expectedOutputCount].replace(/[\n\r]+/g, '');
 		let actualLine = parsedOutput[actualCount];
-		log_info("[" + actualLine + "], [" + expectedLine + "]");
+		//log_info("[" + actualLine + "], [" + expectedLine + "]");
 		let comparison = actualLine.indexOf(expectedLine);
-		log_info("Comparison value: " + comparison);
+		//log_info("Comparison value: " + comparison);
 		actualCount = actualCount + 1;
 		if (comparison == -1) {
-			log_info("Line " + actualCount + " is not a match.");
+			//log_info("Line " + actualCount + " is not a match.");
 			if (actualCount >= parsedOutput.length) {
 				done = true;
 			}
 		} else {
-			log_info("Line " + actualCount + " has a match.");
+			//log_info("Line " + actualCount + " has a match.");
 			feedbackLines.push("Found text: <span style='color: #FF7F50;'>" + expectedLine + "</span>");
 			expectedOutputCount = expectedOutputCount + 1;
 		}
