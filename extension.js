@@ -31,8 +31,23 @@ function activate(context) {
 	);
 	let imageUri = vscode.Uri.file(context.extensionPath + "/media/TitleSlideYesYouCanCode.png");
 	const imageSrc = currentPanel.webview.asWebviewUri(imageUri);
-	var challengeRows = fs.readFileSync(context.extensionPath + "/problems/challengeRows.txt", 'utf8');
-	currentPanel.webview.html = getWebviewContent(imageSrc, challengeRows);
+	if (fs.existsSync(context.extensionPath + "/problems/challengeRows.txt")) {
+	    var challengeRows = fs.readFileSync(context.extensionPath + "/problems/challengeRows.txt", 'utf8');
+		currentPanel.webview.html = getWebviewContent(imageSrc, challengeRows);
+	} else {
+		currentPanel.webview.html = `<!DOCTYPE html>
+		<html lang="en">
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Yes, You Can Code</title>
+	  </head>
+	  <body>
+	  The Yes, You Can Code extension is designed to be run with the <a href="https://github.com/dbroemme/yesyoucancode">Yes, You Can Code</a> git project.
+	  <br/><br/>It currently does not work with other projects.
+	  </body>
+	  </html>`;
+	}
 	currentPanel.onDidDispose(
 	  () => {
 		  currentPanel = undefined;
@@ -82,8 +97,6 @@ function activate(context) {
 	context.subscriptions.push(disposable);
 
 	hideTerminalWindow();
-	//vscode.commands.executeCommand("workbench.action.closeSidebar");
-	//vscode.commands.executeCommand("workbench.action.toggleActivityBarVisibility");
 	
 	var fileSystemWatcher = vscode.workspace.createFileSystemWatcher("**/{r,out}*");
     fileSystemWatcher.ignoreCreateEvents = false;
@@ -155,7 +168,6 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 	// because we need the file itself to be saved on disk for the run command
 	let openTextDocuments = vscode.window.visibleTextEditors;
 	openTextDocuments.forEach(textDoc => {
-		log_info("Checking file " + textDoc.document.fileName);
 		if (textDoc.document.fileName.endsWith("code" + chosenExampleNumber + ".rb")) {
 			log_info("We have found the editor with your code to run. Number of lines: "
 				+ textDoc.document.lineCount);
@@ -164,12 +176,10 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 			for (i = 0; i < textDoc.document.lineCount; i++) {
 				var lineOfSource = textDoc.document.lineAt(i).text;
 				if (runMode === MANAGED_RUN_MODE) {
-					log_info("Converting line " + lineOfSource);
 					var tempSourceCode = lineOfSource.replace(/puts/g, "yycc_puts");
 					tempSourceCode = tempSourceCode.replace(/gets/g, "yycc_gets");
 					sourceCode = sourceCode + tempSourceCode + '\n';
 				} else {
-					log_info("Leaving alone line " + lineOfSource);
 					sourceCode = sourceCode + lineOfSource + '\n';
 				}
 			}
@@ -221,7 +231,6 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 				log_info("ruby stderr: " + data);
 				let strData = data.toString();
 				let comparison = strData.indexOf("temp.rb:");
-				log_info("Comparison value is " + comparison);
 				var errorToShow = strData;
 				if (comparison > 0) {
 					errorToShow = "Error at line " + strData.substring(comparison + 8);
@@ -566,7 +575,6 @@ function determineFeedback(parsedOutput, expectedOutput) {
 		if (comparison == -1) {
 			log_info("Line " + actualCount + " is not a match.");
 			if (actualCount >= parsedOutput.length) {
-				log_info("We should be done.");
 				done = true;
 			}
 		} else {
@@ -588,7 +596,7 @@ function determineFeedback(parsedOutput, expectedOutput) {
 	if (match) {
 		return "Your program is correct!<br/>".concat(feedbackLines.join("<br/>"));
 	}
-    return "Looks like we aren't quite there yet.<br/>".concat(feedbackLines.join("<br/>"));
+    return "Looks like we didn't find the output we expected.<br/>".concat(feedbackLines.join("<br/>"));
 }
 
 
