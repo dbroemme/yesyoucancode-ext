@@ -32,7 +32,7 @@ function activate(context) {
 	let imageUri = vscode.Uri.file(context.extensionPath + "/media/TitleSlideYesYouCanCode.png");
 	const imageSrc = currentPanel.webview.asWebviewUri(imageUri);
 	if (fs.existsSync(context.extensionPath + "/problems/challengeRows.txt")) {
-	    var challengeRows = fs.readFileSync(context.extensionPath + "/problems/challengeRows.txt", 'utf8');
+	    var challengeRows = fs.readFileSync(rootDir + "/problems/challengeRows.txt", 'utf8');
 		currentPanel.webview.html = getWebviewContent(imageSrc, challengeRows);
 	} else {
 		currentPanel.webview.html = `<!DOCTYPE html>
