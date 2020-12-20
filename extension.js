@@ -35,7 +35,7 @@ function activate(context) {
 
 	hideTerminalWindow();
 	
-	var fileSystemWatcher = vscode.workspace.createFileSystemWatcher("**/{r,out}*");
+	var fileSystemWatcher = vscode.workspace.createFileSystemWatcher("**/{r,out,err}*");
     fileSystemWatcher.ignoreCreateEvents = false;
     fileSystemWatcher.ignoreChangeEvents = false;
     fileSystemWatcher.ignoreDeleteEvents = true;
@@ -54,7 +54,10 @@ function activate(context) {
 			let outputArray = parseOutput(outputContent);
 			log_info("output array in file watcher create: " + outputArray.length);
 			context.workspaceState.update("outputLength", outputArray.length);
-		} 
+		} else if (watchedFileName === "err.txt") {
+			var errContent = fs.readFileSync(e.path, 'utf8');
+			currentPanel.webview.postMessage({ deltaoutput: errContent });
+		}
     });
     fileSystemWatcher.onDidChange((e) => {
 		// Get just the filename
@@ -71,6 +74,9 @@ function activate(context) {
 			log_info("output array in file watcher change: " + outputArray.length);
 			currentPanel.webview.postMessage({ deltaoutput: deltaContent.join("\n") + "\n"});
 			
+		} else if (watchedFileName === "err.txt") {
+			var errContent = fs.readFileSync(e.path, 'utf8');
+			currentPanel.webview.postMessage({ deltaoutput: errContent });
 		}
     });
 }
@@ -181,8 +187,10 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 	//log_info("In runRubyProgram() for example " + chosenExampleNumber);
 	let temp_file_name = rootDir + "/problems/temp.rb";
 	let out_file_name = rootDir + "/log/out.txt";
+	let err_file_name = rootDir + "/log/err.txt";
 	safeDeleteFile(temp_file_name);
     safeDeleteFile(out_file_name);
+    safeDeleteFile(err_file_name);
 	resetMessageQueues();
 
 	// Auto save the current editor file, if the user has not done so already
@@ -258,9 +266,8 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 				}
 				errorToShow = errorToShow.replace("<", "");
 				errorToShow = errorToShow.replace(">", "");
-				//log_info("Sending deltaoutput " + errorToShow.toString());
-				currentPanel.webview.postMessage({
-					deltaoutput: errorToShow
+				fs.writeFile(err_file_name, errorToShow, (err) => {
+					if (err) throw err;
 				});
 		    });
 			rb.on('close', (code) => {
