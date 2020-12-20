@@ -16,82 +16,19 @@ function activate(context) {
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
 	log_info("The yesyoucancoderuby extension is now active. The root dir is " + rootDir);
-	var chosenExampleNumber = 'none';
-	var runMode = MANAGED_RUN_MODE;
+	context.workspaceState.update("chosenExampleNumber", 'none');
+	context.workspaceState.update("runMode", MANAGED_RUN_MODE);
 
 	// The code you place here will be executed every time your command is executed
-	let currentPanel = vscode.window.createWebviewPanel(
-		'YesYouCanCode',
-		'Yes, You Can Code',
-		vscode.ViewColumn.Two,
-		{
-			// Enable scripts in the webview
-			enableScripts: true
-		}
-	);
-	let imageUri = vscode.Uri.file(context.extensionPath + "/media/TitleSlideYesYouCanCode.png");
-	const imageSrc = currentPanel.webview.asWebviewUri(imageUri);
-	if (fs.existsSync(context.extensionPath + "/problems/challengeRows.txt")) {
-	    var challengeRows = fs.readFileSync(rootDir + "/problems/challengeRows.txt", 'utf8');
-		currentPanel.webview.html = getWebviewContent(imageSrc, challengeRows);
-	} else {
-		currentPanel.webview.html = `<!DOCTYPE html>
-		<html lang="en">
-		<head>
-			<meta charset="UTF-8">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Yes, You Can Code</title>
-	  </head>
-	  <body>
-	  The Yes, You Can Code extension is designed to be run with the <a href="https://github.com/dbroemme/yesyoucancode">Yes, You Can Code</a> git project.
-	  <br/><br/>It currently does not work with other projects.
-	  </body>
-	  </html>`;
-	}
-	currentPanel.onDidDispose(
-	  () => {
-		  currentPanel = undefined;
-	  },
-	  undefined,
-	  context.subscriptions
-	);
-	currentPanel.webview.onDidReceiveMessage(
-		message => {
-		  switch (message.command) {
-			case 'run':
-			  runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode);
-			  return;
-			case 'start':
-			  chosenExampleNumber = message.text;
-			  openExample(currentPanel, message.text, rootDir, fs);
-			  return;
-			case 'gets':
-			  push(message.text);
-			  return;
-			case 'irb':
-			  openirb();
-			  return;
-			case 'mode':
-			  runMode = message.text;
-			  if (runMode === TERMINAL_RUN_MODE) {
-				showTerminalWindow();
-				setRubyRunMode(false);
-			  } else {
-				hideTerminalWindow();
-				setRubyRunMode(true);
-			  }
-			  return;
-			}
-		},
-		undefined,
-		context.subscriptions
-	);
+	var currentPanel = createMyWebViewPanel(context);
 
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with  registerCommand
 	// The commandId parameter must match the command field in package.json
 	let disposable = vscode.commands.registerCommand('yesyoucancoderuby.openHelper', function () {
 		log_info("YesYouCanCode extension activation function was called.");
+		currentPanel = createMyWebViewPanel(context);
+		log_info("recreated the panel");
 	});
 
 	context.subscriptions.push(disposable);
@@ -128,6 +65,79 @@ function activate(context) {
     });
 }
 exports.activate = activate;
+
+function createMyWebViewPanel(context) {
+	let tempPanel = vscode.window.createWebviewPanel(
+		'YesYouCanCode',
+		'Yes, You Can Code',
+		vscode.ViewColumn.Two,
+		{
+			// Enable scripts in the webview
+			enableScripts: true
+		}
+	);
+	let imageUri = vscode.Uri.file(rootDir + "/media/TitleSlideYesYouCanCode.png");
+	const imageSrc = tempPanel.webview.asWebviewUri(imageUri);
+	if (fs.existsSync(rootDir + "/problems/challengeRows.txt")) {
+	    var challengeRows = fs.readFileSync(rootDir + "/problems/challengeRows.txt", 'utf8');
+		tempPanel.webview.html = getWebviewContent(imageSrc, challengeRows);
+	} else {
+		tempPanel.webview.html = `<!DOCTYPE html>
+		<html lang="en">
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Yes, You Can Code</title>
+	  </head>
+	  <body>
+	  The Yes, You Can Code extension is designed to be run with the <a href="https://github.com/dbroemme/yesyoucancode">Yes, You Can Code</a> git project.
+	  <br/><br/>It currently does not work with other projects.
+	  </body>
+	  </html>`;
+	}
+	tempPanel.onDidDispose(
+		() => {
+			tempPanel = undefined;
+		},
+		undefined,
+		context.subscriptions
+	  );
+	tempPanel.webview.onDidReceiveMessage(
+		message => {
+		  switch (message.command) {
+			case 'run':
+			  runRubyProgram(tempPanel, rootDir,
+				  context.workspaceState.get("chosenExampleNumber"), fs, runMode);
+			  return;
+			case 'start':
+			  context.workspaceState.update("chosenExampleNumber", message.text);
+			  openExample(tempPanel, message.text, rootDir, fs);
+			  return;
+			case 'gets':
+			  push(message.text);
+			  return;
+			case 'irb':
+			  openirb();
+			  return;
+			case 'mode':
+			  var runMode = message.text;
+			  context.workspaceState.update("runMode", runMode);
+			  if (runMode === TERMINAL_RUN_MODE) {
+				showTerminalWindow();
+				setRubyRunMode(false);
+			  } else {
+				hideTerminalWindow();
+				setRubyRunMode(true);
+			  }
+			  return;
+			}
+		},
+		undefined,
+		context.subscriptions
+	);
+
+	return tempPanel;
+}
 
 function safeDeleteFile(filename) {
 	//log_info("Safe delete of " + filename);
