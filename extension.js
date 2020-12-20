@@ -28,14 +28,13 @@ function activate(context) {
 	let disposable = vscode.commands.registerCommand('yesyoucancoderuby.openHelper', function () {
 		log_info("YesYouCanCode extension activation function was called.");
 		currentPanel = createMyWebViewPanel(context);
-		log_info("recreated the panel");
 	});
 
 	context.subscriptions.push(disposable);
 
 	hideTerminalWindow();
 	
-	var fileSystemWatcher = vscode.workspace.createFileSystemWatcher("**/{r,out,err}*");
+	var fileSystemWatcher = vscode.workspace.createFileSystemWatcher("**/{r,out}*");
     fileSystemWatcher.ignoreCreateEvents = false;
     fileSystemWatcher.ignoreChangeEvents = false;
     fileSystemWatcher.ignoreDeleteEvents = true;
@@ -49,14 +48,14 @@ function activate(context) {
 		} else if (watchedFileName === "out.txt") {
 			var outputContent = fs.readFileSync(e.path, 'utf8');
 			log_info("output file created: " + outputContent + ".");
-			currentPanel.webview.postMessage({ deltaoutput: outputContent});
-			
-			let outputArray = parseOutput(outputContent);
-			log_info("output array in file watcher create: " + outputArray.length);
-			context.workspaceState.update("outputLength", outputArray.length);
-		} else if (watchedFileName === "err.txt") {
-			var errContent = fs.readFileSync(e.path, 'utf8');
-			currentPanel.webview.postMessage({ deltaoutput: errContent });
+			var errorContent = context.workspaceState.get("errorContent");
+			var completeContent;
+			if (errorContent == undefined) {
+			    completeContent = outputContent;
+			} else {
+				completeContent = outputContent + errorContent
+			}
+			currentPanel.webview.postMessage({ output: completeContent});
 		}
     });
     fileSystemWatcher.onDidChange((e) => {
@@ -66,17 +65,14 @@ function activate(context) {
 		//vscode.window.showInformationMessage(watchedFileName + "  was changed: " + e);
 		if (watchedFileName === "out.txt") {
 			var outputContent = fs.readFileSync(e.path, 'utf8');
-
-			let outputArray = parseOutput(outputContent);
-			let previousLength = context.workspaceState.get("outputLength");
-			context.workspaceState.update("outputLength", outputArray.length);
-			let deltaContent = outputArray.slice(previousLength);
-			log_info("output array in file watcher change: " + outputArray.length);
-			currentPanel.webview.postMessage({ deltaoutput: deltaContent.join("\n") + "\n"});
-			
-		} else if (watchedFileName === "err.txt") {
-			var errContent = fs.readFileSync(e.path, 'utf8');
-			currentPanel.webview.postMessage({ deltaoutput: errContent });
+			var errorContent = context.workspaceState.get("errorContent");
+			var completeContent;
+			if (errorContent == undefined) {
+			    completeContent = outputContent;
+			} else {
+				completeContent = outputContent + errorContent
+			}
+			currentPanel.webview.postMessage({ output: completeContent});
 		}
     });
 }
@@ -92,7 +88,7 @@ function createMyWebViewPanel(context) {
 			enableScripts: true
 		}
 	);
-	let imageUri = vscode.Uri.file(rootDir + "/media/TitleSlideYesYouCanCode.png");
+	let imageUri = vscode.Uri.file(context.extensionPath + "/media/TitleSlideYesYouCanCode.png");
 	const imageSrc = tempPanel.webview.asWebviewUri(imageUri);
 	if (fs.existsSync(rootDir + "/problems/challengeRows.txt")) {
 	    var challengeRows = fs.readFileSync(rootDir + "/problems/challengeRows.txt", 'utf8');
@@ -124,7 +120,7 @@ function createMyWebViewPanel(context) {
 			case 'run':
 			  runRubyProgram(tempPanel, rootDir,
 				  context.workspaceState.get("chosenExampleNumber"), fs,
-				  context.workspaceState.get("runMode"));
+				  context.workspaceState.get("runMode"), context);
 			  return;
 			case 'start':
 			  context.workspaceState.update("chosenExampleNumber", message.text);
@@ -183,14 +179,13 @@ function openExample(currentPanel, exampleNumber, rootDir, fs) {
 	);
 }
 
-function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode) {
+function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode, context) {
 	//log_info("In runRubyProgram() for example " + chosenExampleNumber);
 	let temp_file_name = rootDir + "/problems/temp.rb";
 	let out_file_name = rootDir + "/log/out.txt";
-	let err_file_name = rootDir + "/log/err.txt";
 	safeDeleteFile(temp_file_name);
-    safeDeleteFile(out_file_name);
-    safeDeleteFile(err_file_name);
+	safeDeleteFile(out_file_name);
+	context.workspaceState.update("errorContent", undefined);
 	resetMessageQueues();
 
 	// Auto save the current editor file, if the user has not done so already
@@ -266,9 +261,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 				}
 				errorToShow = errorToShow.replace("<", "");
 				errorToShow = errorToShow.replace(">", "");
-				fs.writeFile(err_file_name, errorToShow, (err) => {
-					if (err) throw err;
-				});
+				var errorContent = context.workspaceState.update("errorContent", errorToShow);
 		    });
 			rb.on('close', (code) => {
 				log_info("Your ruby program exited with code " + code);
@@ -409,7 +402,7 @@ function getWebviewContent(imageUri, challengeRows) {
 	      </tr>
 	    </table>
 
-	    <pre id="output" style="background: #f4f4f4; border: 1px solid #ddd; border-left: 3px solid #5299D5; color: #666; page-break-inside: avoid; font-family: monospace; font-size: 15px; line-height: 1.6; margin-bottom: 1.6em; max-width: 100%; overflow: auto; padding: 1em 1.5em; display: block; word-wrap: break-word;"> </pre>
+	    <pre id="output" style="background: #f4f4f4; border: 1px solid #ddd; border-left: 3px solid #5299D5; color: #666; page-break-inside: avoid; font-family: monospace; font-size: 15px; line-height: 1.6; margin-bottom: 1.6em; max-width: 100%; overflow: auto; padding: 1em 1.5em; display: block; word-wrap: break-word;"></pre>
 	  
 	    <!-- Form to get string input -->
 	    <div id="getsdiv" style="display: none; border:2px solid #FF7F50; padding: 5px; margin: 5px;" onKeyPress="return handleFormData(event)">
