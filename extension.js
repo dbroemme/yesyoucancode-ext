@@ -46,16 +46,7 @@ function activate(context) {
 		if (watchedFileName.startsWith("r")) {
 			getWebviewInput(currentPanel);
 		} else if (watchedFileName === "out.txt") {
-			var outputContent = fs.readFileSync(e.path, 'utf8');
-			log_info("output file created: " + outputContent + ".");
-			var errorContent = context.workspaceState.get("errorContent");
-			var completeContent;
-			if (errorContent == undefined) {
-			    completeContent = outputContent;
-			} else {
-				completeContent = outputContent + errorContent
-			}
-			currentPanel.webview.postMessage({ output: completeContent});
+			updateTheOutputWindow(context, currentPanel);
 		}
     });
     fileSystemWatcher.onDidChange((e) => {
@@ -64,19 +55,27 @@ function activate(context) {
 		var watchedFileName = e.path.slice(lastDelimIndex + 1);
 		//vscode.window.showInformationMessage(watchedFileName + "  was changed: " + e);
 		if (watchedFileName === "out.txt") {
-			var outputContent = fs.readFileSync(e.path, 'utf8');
-			var errorContent = context.workspaceState.get("errorContent");
-			var completeContent;
-			if (errorContent == undefined) {
-			    completeContent = outputContent;
-			} else {
-				completeContent = outputContent + errorContent
-			}
-			currentPanel.webview.postMessage({ output: completeContent});
+			updateTheOutputWindow(context, currentPanel);
 		}
     });
 }
 exports.activate = activate;
+
+function updateTheOutputWindow(context, currentPanel) {
+	let out_file_name = rootDir + "/log/out.txt";
+	var outputContent = "";
+	if (fs.existsSync(out_file_name)) {
+		outputContent = fs.readFileSync(out_file_name, 'utf8');
+	}
+	var errorContent = context.workspaceState.get("errorContent");
+	var completeContent;
+	if (errorContent == undefined) {
+		completeContent = outputContent;
+	} else {
+		completeContent = outputContent + errorContent
+	}
+	currentPanel.webview.postMessage({ output: completeContent});
+}
 
 function createMyWebViewPanel(context) {
 	let tempPanel = vscode.window.createWebviewPanel(
@@ -256,12 +255,10 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode,
 				let strData = data.toString();
 				let comparison = strData.indexOf("temp.rb:");
 				var errorToShow = strData;
-				if (comparison > 0) {
-					errorToShow = "Error at line " + strData.substring(comparison + 8);
-				}
 				errorToShow = errorToShow.replace("<", "");
 				errorToShow = errorToShow.replace(">", "");
 				var errorContent = context.workspaceState.update("errorContent", errorToShow);
+				updateTheOutputWindow(context, currentPanel);
 		    });
 			rb.on('close', (code) => {
 				log_info("Your ruby program exited with code " + code);
