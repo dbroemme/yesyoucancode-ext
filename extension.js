@@ -48,8 +48,12 @@ function activate(context) {
 			getWebviewInput(currentPanel);
 		} else if (watchedFileName === "out.txt") {
 			var outputContent = fs.readFileSync(e.path, 'utf8');
-			//log_info("output file created: " + outputContent + ".");
-   	        currentPanel.webview.postMessage({ output: outputContent});
+			log_info("output file created: " + outputContent + ".");
+			currentPanel.webview.postMessage({ deltaoutput: outputContent});
+			
+			let outputArray = parseOutput(outputContent);
+			log_info("output array in file watcher create: " + outputArray.length);
+			context.workspaceState.update("outputLength", outputArray.length);
 		} 
     });
     fileSystemWatcher.onDidChange((e) => {
@@ -59,8 +63,14 @@ function activate(context) {
 		//vscode.window.showInformationMessage(watchedFileName + "  was changed: " + e);
 		if (watchedFileName === "out.txt") {
 			var outputContent = fs.readFileSync(e.path, 'utf8');
-			//log_info("output file updated: " + outputContent + ".");
-			currentPanel.webview.postMessage({ output: outputContent});
+
+			let outputArray = parseOutput(outputContent);
+			let previousLength = context.workspaceState.get("outputLength");
+			context.workspaceState.update("outputLength", outputArray.length);
+			let deltaContent = outputArray.slice(previousLength);
+			log_info("output array in file watcher change: " + outputArray.length);
+			currentPanel.webview.postMessage({ deltaoutput: deltaContent.join("\n") + "\n"});
+			
 		}
     });
 }
@@ -107,7 +117,8 @@ function createMyWebViewPanel(context) {
 		  switch (message.command) {
 			case 'run':
 			  runRubyProgram(tempPanel, rootDir,
-				  context.workspaceState.get("chosenExampleNumber"), fs, runMode);
+				  context.workspaceState.get("chosenExampleNumber"), fs,
+				  context.workspaceState.get("runMode"));
 			  return;
 			case 'start':
 			  context.workspaceState.update("chosenExampleNumber", message.text);
@@ -262,7 +273,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode)
 					if (fs.existsSync(out_file_name)) {
 						var outputContent = fs.readFileSync(out_file_name, 'utf8');
 						let parsedOutput = parseOutput(outputContent);
-						let feedback = determineFeedback(parsedOutput["asarray"], expectedOutput);
+						let feedback = determineFeedback(parsedOutput, expectedOutput);
 						//log_info("The feedback is: " + feedback);
 						// Send info back to the webview for display
 						currentPanel.webview.postMessage({ feedback: feedback });
@@ -547,19 +558,20 @@ function getWebviewContent(imageUri, challengeRows) {
 // this method is called when your extension is deactivated
 function deactivate() {}
 
-function parseOutput(strOutput) {
-	let lines = strOutput.toString('utf8').split(/\r?\n/)
+function getActualOutput(lines) {
 	var actualOutputLines = []
 	lines.forEach(element => {
 		if (element.length > 0) {
 			actualOutputLines.push(element);
 		}
 	});
+	return actualOutputLines;
+}
 
-	return {
-		output: actualOutputLines.join("<br/>"),
-		asarray: actualOutputLines
-	};
+function parseOutput(strOutput) {
+	let lines = strOutput.toString('utf8').split(/\r?\n/)
+	var actualOutputLines = getActualOutput(lines);
+	return actualOutputLines;
 }
 
 function determineFeedback(parsedOutput, expectedOutput) {
