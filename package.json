@@ -3,7 +3,7 @@
 	"displayName": "YesYouCanCodeRuby",
 	"description": "A helper to use the Yes You Can Code training",
 	"publisher": "dbroemme",
-	"version": "1.0.0",
+	"version": "1.0.2",
         "license" : "MIT",
 	"engines": {
 		"vscode": "^1.50.0"
@@ -18,8 +18,8 @@
 	"contributes": {
 		"commands": [
 			{
-				"command": "yesyoucancoderuby.helloWorld",
-				"title": "Ruby Helper"
+				"command": "yesyoucancoderuby.openHelper",
+				"title": "Open Yes You Can Code Helper"
 			}
 		]
 	},

@@ -90,8 +90,8 @@ function activate(context) {
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with  registerCommand
 	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('yesyoucancoderuby.helloWorld', function () {
-		log_info("YouCanCode extension activation function was called.");
+	let disposable = vscode.commands.registerCommand('yesyoucancoderuby.openHelper', function () {
+		log_info("YesYouCanCode extension activation function was called.");
 	});
 
 	context.subscriptions.push(disposable);
@@ -572,11 +572,11 @@ function determineFeedback(parsedOutput, expectedOutput) {
 		let comparison = actualLine.indexOf(expectedLine);
 		//log_info("Comparison value: " + comparison);
 		actualCount = actualCount + 1;
-		if (comparison == -1) {
+		if (actualCount >= parsedOutput.length) {
+			done = true;
+		}
+    	if (comparison == -1) {
 			//log_info("Line " + actualCount + " is not a match.");
-			if (actualCount >= parsedOutput.length) {
-				done = true;
-			}
 		} else {
 			//log_info("Line " + actualCount + " has a match.");
 			feedbackLines.push("Found text: <span style='color: #FF7F50;'>" + expectedLine + "</span>");
