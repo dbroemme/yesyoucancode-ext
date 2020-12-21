@@ -534,7 +534,7 @@ function getWebviewContent(imageUri, challengeRows) {
 				   var selectedItem = chart.getSelection()[0];
 				   var selectedIndex = selectedItem.row;
 				   var rowName = data.getFormattedValue(selectedIndex, 0);
-				   startProblem(rowName[0]);
+				   startProblem(rowName.split('.')[0]);
 			   }
 
 			   // Listen for the 'select' event, and call my function selectHandler() when
