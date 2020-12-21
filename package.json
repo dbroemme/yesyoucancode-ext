@@ -3,7 +3,7 @@
 	"displayName": "YesYouCanCodeRuby",
 	"description": "A helper to use the Yes You Can Code training",
 	"publisher": "dbroemme",
-	"version": "1.0.4",
+	"version": "1.0.6",
         "license" : "MIT",
 	"engines": {
 		"vscode": "^1.50.0"

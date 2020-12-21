@@ -246,7 +246,7 @@ function runRubyProgram(currentPanel, rootDir, chosenExampleNumber, fs, runMode,
 
 		try {
 			const { spawn } = require("child_process");
-			const rb = spawn('ruby', [temp_file_name]);
+			const rb = spawn('ruby', [temp_file_name], {cwd: rootDir});
 			rb.stdout.on('data', (data) => {
 				log_info("ruby stdout: " + data);
 			});
